@@ -9,10 +9,7 @@ from os.path import join
 from subprocess import run, PIPE, STDOUT
 from distutils.version import StrictVersion
 
-(sphinx, version, src, dst) = sys.argv[1:]  # assign parameters to variables
-
-# set the version in environment for sphinx to pick up
-os.environ['DPDK_VERSION'] = version
+(sphinx, src, dst) = sys.argv[1:]  # assign parameters to variables
 
 # for sphinx version >= 1.7 add parallelism using "-j auto"
 ver = run([sphinx, '--version'], stdout=PIPE,

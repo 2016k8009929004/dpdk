@@ -93,3 +93,4 @@ INTERNAL {
 
 	mlx5_pci_driver_register;
 };
+

@@ -1,4 +1,4 @@
-DPDK_21 {
+DPDK_20.0 {
 	global:
 
 	cpt_pmd_ops_helper_asym_get_mlen;

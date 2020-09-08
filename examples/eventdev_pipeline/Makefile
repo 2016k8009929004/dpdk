@@ -10,9 +10,7 @@ SRCS-y += pipeline_worker_generic.c
 SRCS-y += pipeline_worker_tx.c
 
 # Build using pkg-config variables if possible
-ifneq ($(shell pkg-config --exists libdpdk && echo 0),0)
-$(error "no installation of DPDK found")
-endif
+ifeq ($(shell pkg-config --exists libdpdk && echo 0),0)
 
 all: shared
 .PHONY: shared static
@@ -41,3 +39,22 @@ build:
 clean:
 	rm -f build/$(APP) build/$(APP)-static build/$(APP)-shared
 	test -d build && rmdir -p build || true
+
+else
+
+ifeq ($(RTE_SDK),)
+$(error "Please define RTE_SDK environment variable")
+endif
+
+# Default target, detect a build directory, by looking for a path with a .config
+RTE_TARGET ?= $(notdir $(abspath $(dir $(firstword $(wildcard $(RTE_SDK)/*/.config)))))
+
+include $(RTE_SDK)/mk/rte.vars.mk
+
+CFLAGS += -DALLOW_EXPERIMENTAL_API
+CFLAGS += -O3
+CFLAGS += $(WERROR_FLAGS)
+
+include $(RTE_SDK)/mk/rte.extapp.mk
+
+endif

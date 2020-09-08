@@ -11,6 +11,13 @@ here.
 Deprecation Notices
 -------------------
 
+* make: Support for building DPDK with "make" has been deprecated and
+  support will be removed in the 20.11 release. From 20.11 onwards, DPDK
+  should be built using meson and ninja. For basic instructions see the
+  `Quick-start Guide <https://core.dpdk.org/doc/quick-start/>`_ on the
+  website or the `Getting Started Guide
+  <https://doc.dpdk.org/guides/linux_gsg/build_dpdk.html>`_ document.
+
 * meson: The minimum supported version of meson for configuring and building
   DPDK will be increased to v0.47.1 (from 0.41) from DPDK 19.05 onwards. For
   those users with a version earlier than 0.47.1, an updated copy of meson
@@ -273,13 +280,6 @@ Deprecation Notices
   ``rte_crypto_aead_xform`` is set to zero. When IV length is greater or equal
   to one it means it represents IV, when is set to zero it means J0 is used
   directly, in this case 16 bytes of J0 need to be passed.
-
-* scheduler: The functions ``rte_cryptodev_scheduler_slave_attach``,
-  ``rte_cryptodev_scheduler_slave_detach`` and
-  ``rte_cryptodev_scheduler_slaves_get`` will be replaced in 20.11 by
-  ``rte_cryptodev_scheduler_worker_attach``,
-  ``rte_cryptodev_scheduler_worker_detach`` and
-  ``rte_cryptodev_scheduler_workers_get`` accordingly.
 
 * eventdev: Following structures will be modified to support DLB PMD
   and future extensions:
