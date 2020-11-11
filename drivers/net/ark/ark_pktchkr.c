@@ -7,7 +7,6 @@
 #include <locale.h>
 #include <unistd.h>
 
-#include <rte_string_fns.h>
 #include <rte_ethdev_driver.h>
 #include <rte_malloc.h>
 
@@ -348,7 +347,7 @@ set_arg(char *arg, char *val)
 			o->v.INT = atoll(val);
 			break;
 		case OTSTRING:
-			strlcpy(o->v.STR, val, ARK_MAX_STR_LEN);
+			snprintf(o->v.STR, ARK_MAX_STR_LEN, "%s", val);
 			break;
 		}
 		return 1;

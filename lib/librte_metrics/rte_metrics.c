@@ -13,8 +13,7 @@
 #include <rte_memzone.h>
 #include <rte_spinlock.h>
 
-int metrics_initialized;
-
+#define RTE_METRICS_MAX_METRICS 256
 #define RTE_METRICS_MEMZONE_NAME "RTE_METRICS"
 
 /**
@@ -62,8 +61,6 @@ rte_metrics_init(int socket_id)
 	struct rte_metrics_data_s *stats;
 	const struct rte_memzone *memzone;
 
-	if (metrics_initialized)
-		return;
 	if (rte_eal_process_type() != RTE_PROC_PRIMARY)
 		return;
 
@@ -77,30 +74,6 @@ rte_metrics_init(int socket_id)
 	stats = memzone->addr;
 	memset(stats, 0, sizeof(struct rte_metrics_data_s));
 	rte_spinlock_init(&stats->lock);
-	metrics_initialized = 1;
-}
-
-int
-rte_metrics_deinit(void)
-{
-	struct rte_metrics_data_s *stats;
-	const struct rte_memzone *memzone;
-	int ret;
-
-	if (rte_eal_process_type() != RTE_PROC_PRIMARY)
-		return -EINVAL;
-
-	memzone = rte_memzone_lookup(RTE_METRICS_MEMZONE_NAME);
-	if (memzone == NULL)
-		return -EIO;
-
-	stats = memzone->addr;
-	memset(stats, 0, sizeof(struct rte_metrics_data_s));
-
-	ret = rte_memzone_free(memzone);
-	if (ret == 0)
-		metrics_initialized = 0;
-	return ret;
 }
 
 int

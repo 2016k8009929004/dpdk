@@ -21,7 +21,6 @@
 #else
 #pragma message "Jansson dev libs unavailable, not including JSON parsing"
 #endif
-#include <rte_string_fns.h>
 #include <rte_log.h>
 #include <rte_memory.h>
 #include <rte_malloc.h>
@@ -31,7 +30,7 @@
 #ifdef RTE_LIBRTE_I40E_PMD
 #include <rte_pmd_i40e.h>
 #endif
-#include <rte_power.h>
+#include <rte_string_fns.h>
 
 #include <libvirt/libvirt.h>
 #include "channel_monitor.h"
@@ -54,21 +53,21 @@ static volatile unsigned run_loop = 1;
 static int global_event_fd;
 static unsigned int policy_is_set;
 static struct epoll_event *global_events_list;
-static struct policy policies[RTE_MAX_LCORE];
+static struct policy policies[MAX_CLIENTS];
 
 #ifdef USE_JANSSON
 
 union PFID {
-	struct rte_ether_addr addr;
+	struct ether_addr addr;
 	uint64_t pfid;
 };
 
 static int
-str_to_ether_addr(const char *a, struct rte_ether_addr *ether_addr)
+str_to_ether_addr(const char *a, struct ether_addr *ether_addr)
 {
 	int i;
 	char *end;
-	unsigned long o[RTE_ETHER_ADDR_LEN];
+	unsigned long o[ETHER_ADDR_LEN];
 
 	i = 0;
 	do {
@@ -84,14 +83,14 @@ str_to_ether_addr(const char *a, struct rte_ether_addr *ether_addr)
 		return -1;
 
 	/* Support the format XX:XX:XX:XX:XX:XX */
-	if (i == RTE_ETHER_ADDR_LEN) {
+	if (i == ETHER_ADDR_LEN) {
 		while (i-- != 0) {
 			if (o[i] > UINT8_MAX)
 				return -1;
 			ether_addr->addr_bytes[i] = (uint8_t)o[i];
 		}
 	/* Support the format XXXX:XXXX:XXXX */
-	} else if (i == RTE_ETHER_ADDR_LEN / 2) {
+	} else if (i == ETHER_ADDR_LEN / 2) {
 		while (i-- != 0) {
 			if (o[i] > UINT16_MAX)
 				return -1;
@@ -133,45 +132,13 @@ set_policy_mac(struct channel_packet *pkt, int idx, char *mac)
 	return 0;
 }
 
-static char*
-get_resource_name_from_chn_path(const char *channel_path)
-{
-	char *substr = NULL;
-
-	substr = strstr(channel_path, CHANNEL_MGR_FIFO_PATTERN_NAME);
-
-	return substr;
-}
 
 static int
-get_resource_id_from_vmname(const char *vm_name)
-{
-	int result = -1;
-	int off = 0;
-
-	if (vm_name == NULL)
-		return -1;
-
-	while (vm_name[off] != '\0') {
-		if (isdigit(vm_name[off]))
-			break;
-		off++;
-	}
-	result = atoi(&vm_name[off]);
-	if ((result == 0) && (vm_name[off] != '0'))
-		return -1;
-
-	return result;
-}
-
-static int
-parse_json_to_pkt(json_t *element, struct channel_packet *pkt,
-					const char *vm_name)
+parse_json_to_pkt(json_t *element, struct channel_packet *pkt)
 {
 	const char *key;
 	json_t *value;
 	int ret;
-	int resource_id;
 
 	memset(pkt, 0, sizeof(struct channel_packet));
 
@@ -182,26 +149,23 @@ parse_json_to_pkt(json_t *element, struct channel_packet *pkt,
 	pkt->command = PKT_POLICY;
 	pkt->core_type = CORE_TYPE_PHYSICAL;
 
-	if (vm_name == NULL) {
-		RTE_LOG(ERR, CHANNEL_MONITOR,
-			"vm_name is NULL, request rejected !\n");
-		return -1;
-	}
-
 	json_object_foreach(element, key, value) {
 		if (!strcmp(key, "policy")) {
 			/* Recurse in to get the contents of profile */
-			ret = parse_json_to_pkt(value, pkt, vm_name);
+			ret = parse_json_to_pkt(value, pkt);
 			if (ret)
 				return ret;
 		} else if (!strcmp(key, "instruction")) {
 			/* Recurse in to get the contents of instruction */
-			ret = parse_json_to_pkt(value, pkt, vm_name);
+			ret = parse_json_to_pkt(value, pkt);
 			if (ret)
 				return ret;
+		} else if (!strcmp(key, "name")) {
+			strlcpy(pkt->vm_name, json_string_value(value),
+					sizeof(pkt->vm_name));
 		} else if (!strcmp(key, "command")) {
 			char command[32];
-			strlcpy(command, json_string_value(value), 32);
+			snprintf(command, 32, "%s", json_string_value(value));
 			if (!strcmp(command, "power")) {
 				pkt->command = CPU_POWER;
 			} else if (!strcmp(command, "create")) {
@@ -215,7 +179,7 @@ parse_json_to_pkt(json_t *element, struct channel_packet *pkt,
 			}
 		} else if (!strcmp(key, "policy_type")) {
 			char command[32];
-			strlcpy(command, json_string_value(value), 32);
+			snprintf(command, 32, "%s", json_string_value(value));
 			if (!strcmp(command, "TIME")) {
 				pkt->policy_to_use = TIME;
 			} else if (!strcmp(command, "TRAFFIC")) {
@@ -231,7 +195,7 @@ parse_json_to_pkt(json_t *element, struct channel_packet *pkt,
 			}
 		} else if (!strcmp(key, "workload")) {
 			char command[32];
-			strlcpy(command, json_string_value(value), 32);
+			snprintf(command, 32, "%s", json_string_value(value));
 			if (!strcmp(command, "HIGH")) {
 				pkt->workload = HIGH;
 			} else if (!strcmp(command, "MEDIUM")) {
@@ -261,15 +225,24 @@ parse_json_to_pkt(json_t *element, struct channel_packet *pkt,
 						json_array_get(value, i));
 				pkt->timer_policy.quiet_hours[i] = hour;
 			}
+		} else if (!strcmp(key, "core_list")) {
+			unsigned int i;
+			size_t size = json_array_size(value);
+
+			for (i = 0; i < size; i++) {
+				int core = (int)json_integer_value(
+						json_array_get(value, i));
+				pkt->vcpu_to_control[i] = core;
+			}
+			pkt->num_vcpu = size;
 		} else if (!strcmp(key, "mac_list")) {
 			unsigned int i;
 			size_t size = json_array_size(value);
 
 			for (i = 0; i < size; i++) {
 				char mac[32];
-				strlcpy(mac,
-					json_string_value(json_array_get(value, i)),
-					32);
+				snprintf(mac, 32, "%s", json_string_value(
+						json_array_get(value, i)));
 				set_policy_mac(pkt, i, mac);
 			}
 			pkt->nb_mac_to_monitor = size;
@@ -281,7 +254,7 @@ parse_json_to_pkt(json_t *element, struct channel_packet *pkt,
 					(uint32_t)json_integer_value(value);
 		} else if (!strcmp(key, "unit")) {
 			char unit[32];
-			strlcpy(unit, json_string_value(value), 32);
+			snprintf(unit, 32, "%s", json_string_value(value));
 			if (!strcmp(unit, "SCALE_UP")) {
 				pkt->unit = CPU_POWER_SCALE_UP;
 			} else if (!strcmp(unit, "SCALE_DOWN")) {
@@ -299,21 +272,13 @@ parse_json_to_pkt(json_t *element, struct channel_packet *pkt,
 					"Invalid command received in JSON\n");
 				return -1;
 			}
+		} else if (!strcmp(key, "resource_id")) {
+			pkt->resource_id = (uint32_t)json_integer_value(value);
 		} else {
 			RTE_LOG(ERR, CHANNEL_MONITOR,
 				"Unknown key received in JSON string: %s\n",
 				key);
 		}
-
-		resource_id = get_resource_id_from_vmname(vm_name);
-		if (resource_id < 0) {
-			RTE_LOG(ERR, CHANNEL_MONITOR,
-				"Could not get resource_id from vm_name:%s\n",
-				vm_name);
-			return -1;
-		}
-		strlcpy(pkt->vm_name, vm_name, VM_MAX_NAME_SZ);
-		pkt->resource_id = resource_id;
 	}
 	return 0;
 }
@@ -395,6 +360,7 @@ get_pcpu_to_control(struct policy *pol)
 	/* Convert vcpu to pcpu. */
 	struct vm_info info;
 	int pcpu, count;
+	uint64_t mask_u64b;
 	struct core_info *ci;
 
 	ci = get_core_info();
@@ -415,8 +381,13 @@ get_pcpu_to_control(struct policy *pol)
 		 */
 		get_info_vm(pol->pkt.vm_name, &info);
 		for (count = 0; count < pol->pkt.num_vcpu; count++) {
-			pcpu = info.pcpu_map[pol->pkt.vcpu_to_control[count]];
-			pcpu_monitor(pol, ci, pcpu, count);
+			mask_u64b =
+				info.pcpu_mask[pol->pkt.vcpu_to_control[count]];
+			for (pcpu = 0; mask_u64b;
+					mask_u64b &= ~(1ULL << pcpu++)) {
+				if ((mask_u64b >> pcpu) & 1)
+					pcpu_monitor(pol, ci, pcpu, count);
+			}
 		}
 	} else {
 		/*
@@ -441,7 +412,7 @@ get_pfid(struct policy *pol)
 		RTE_ETH_FOREACH_DEV(x) {
 #ifdef RTE_LIBRTE_I40E_PMD
 			ret = rte_pmd_i40e_query_vfid_by_mac(x,
-				(struct rte_ether_addr *)&(pol->pkt.vfid[i]));
+				(struct ether_addr *)&(pol->pkt.vfid[i]));
 #else
 			ret = -ENOTSUP;
 #endif
@@ -467,23 +438,20 @@ update_policy(struct channel_packet *pkt)
 {
 
 	unsigned int updated = 0;
-	unsigned int i;
+	int i;
 
 
 	RTE_LOG(INFO, CHANNEL_MONITOR,
 			"Applying policy for %s\n", pkt->vm_name);
 
-	for (i = 0; i < RTE_DIM(policies); i++) {
+	for (i = 0; i < MAX_CLIENTS; i++) {
 		if (strcmp(policies[i].pkt.vm_name, pkt->vm_name) == 0) {
 			/* Copy the contents of *pkt into the policy.pkt */
 			policies[i].pkt = *pkt;
 			get_pcpu_to_control(&policies[i]);
-			/* Check Eth dev only for Traffic policy */
-			if (policies[i].pkt.policy_to_use == TRAFFIC) {
-				if (get_pfid(&policies[i]) < 0) {
-					updated = 1;
-					break;
-				}
+			if (get_pfid(&policies[i]) == -1) {
+				updated = 1;
+				break;
 			}
 			core_share_status(i);
 			policies[i].enabled = 1;
@@ -491,17 +459,12 @@ update_policy(struct channel_packet *pkt)
 		}
 	}
 	if (!updated) {
-		for (i = 0; i < RTE_DIM(policies); i++) {
+		for (i = 0; i < MAX_CLIENTS; i++) {
 			if (policies[i].enabled == 0) {
 				policies[i].pkt = *pkt;
 				get_pcpu_to_control(&policies[i]);
-				/* Check Eth dev only for Traffic policy */
-				if (policies[i].pkt.policy_to_use == TRAFFIC) {
-					if (get_pfid(&policies[i]) < 0) {
-						updated = 1;
-						break;
-					}
-				}
+				if (get_pfid(&policies[i]) == -1)
+					break;
 				core_share_status(i);
 				policies[i].enabled = 1;
 				break;
@@ -514,13 +477,13 @@ update_policy(struct channel_packet *pkt)
 static int
 remove_policy(struct channel_packet *pkt __rte_unused)
 {
-	unsigned int i;
+	int i;
 
 	/*
 	 * Disabling the policy is simply a case of setting
 	 * enabled to 0
 	 */
-	for (i = 0; i < RTE_DIM(policies); i++) {
+	for (i = 0; i < MAX_CLIENTS; i++) {
 		if (strcmp(policies[i].pkt.vm_name, pkt->vm_name) == 0) {
 			policies[i].enabled = 0;
 			return 0;
@@ -685,140 +648,9 @@ apply_policy(struct policy *pol)
 }
 
 static int
-write_binary_packet(void *buffer,
-		size_t buffer_len,
-		struct channel_info *chan_info)
-{
-	int ret;
-
-	if (buffer_len == 0 || buffer == NULL)
-		return -1;
-
-	if (chan_info->fd < 0) {
-		RTE_LOG(ERR, CHANNEL_MONITOR, "Channel is not connected\n");
-		return -1;
-	}
-
-	while (buffer_len > 0) {
-		ret = write(chan_info->fd, buffer, buffer_len);
-		if (ret == -1) {
-			if (errno == EINTR)
-				continue;
-			RTE_LOG(ERR, CHANNEL_MONITOR, "Write function failed due to %s.\n",
-					strerror(errno));
-			return -1;
-		}
-		buffer = (char *)buffer + ret;
-		buffer_len -= ret;
-	}
-	return 0;
-}
-
-static int
-send_freq(struct channel_packet *pkt,
-		struct channel_info *chan_info,
-		bool freq_list)
-{
-	unsigned int vcore_id = pkt->resource_id;
-	struct channel_packet_freq_list channel_pkt_freq_list;
-	struct vm_info info;
-
-	if (get_info_vm(pkt->vm_name, &info) != 0)
-		return -1;
-
-	if (!freq_list && vcore_id >= MAX_VCPU_PER_VM)
-		return -1;
-
-	if (!info.allow_query)
-		return -1;
-
-	channel_pkt_freq_list.command = CPU_POWER_FREQ_LIST;
-	channel_pkt_freq_list.num_vcpu = info.num_vcpus;
-
-	if (freq_list) {
-		unsigned int i;
-		for (i = 0; i < info.num_vcpus; i++)
-			channel_pkt_freq_list.freq_list[i] =
-			  power_manager_get_current_frequency(info.pcpu_map[i]);
-	} else {
-		channel_pkt_freq_list.freq_list[vcore_id] =
-		  power_manager_get_current_frequency(info.pcpu_map[vcore_id]);
-	}
-
-	return write_binary_packet(&channel_pkt_freq_list,
-			sizeof(channel_pkt_freq_list),
-			chan_info);
-}
-
-static int
-send_capabilities(struct channel_packet *pkt,
-		struct channel_info *chan_info,
-		bool list_requested)
-{
-	unsigned int vcore_id = pkt->resource_id;
-	struct channel_packet_caps_list channel_pkt_caps_list;
-	struct vm_info info;
-	struct rte_power_core_capabilities caps;
-	int ret;
-
-	if (get_info_vm(pkt->vm_name, &info) != 0)
-		return -1;
-
-	if (!list_requested && vcore_id >= MAX_VCPU_PER_VM)
-		return -1;
-
-	if (!info.allow_query)
-		return -1;
-
-	channel_pkt_caps_list.command = CPU_POWER_CAPS_LIST;
-	channel_pkt_caps_list.num_vcpu = info.num_vcpus;
-
-	if (list_requested) {
-		unsigned int i;
-		for (i = 0; i < info.num_vcpus; i++) {
-			ret = rte_power_get_capabilities(info.pcpu_map[i],
-					&caps);
-			if (ret == 0) {
-				channel_pkt_caps_list.turbo[i] =
-						caps.turbo;
-				channel_pkt_caps_list.priority[i] =
-						caps.priority;
-			} else
-				return -1;
-
-		}
-	} else {
-		ret = rte_power_get_capabilities(info.pcpu_map[vcore_id],
-				&caps);
-		if (ret == 0) {
-			channel_pkt_caps_list.turbo[vcore_id] =
-					caps.turbo;
-			channel_pkt_caps_list.priority[vcore_id] =
-					caps.priority;
-		} else
-			return -1;
-	}
-
-	return write_binary_packet(&channel_pkt_caps_list,
-			sizeof(channel_pkt_caps_list),
-			chan_info);
-}
-
-static int
-send_ack_for_received_cmd(struct channel_packet *pkt,
-		struct channel_info *chan_info,
-		uint32_t command)
-{
-	pkt->command = command;
-	return write_binary_packet(pkt,
-			sizeof(struct channel_packet),
-			chan_info);
-}
-
-static int
 process_request(struct channel_packet *pkt, struct channel_info *chan_info)
 {
-	int ret;
+	uint64_t core_mask;
 
 	if (chan_info == NULL)
 		return -1;
@@ -828,100 +660,79 @@ process_request(struct channel_packet *pkt, struct channel_info *chan_info)
 		return -1;
 
 	if (pkt->command == CPU_POWER) {
-		unsigned int core_num;
-
-		if (pkt->core_type == CORE_TYPE_VIRTUAL)
-			core_num = get_pcpu(chan_info, pkt->resource_id);
-		else
-			core_num = pkt->resource_id;
-
-		RTE_LOG(DEBUG, CHANNEL_MONITOR, "Processing requested cmd for cpu:%d\n",
-			core_num);
-
-		int scale_res;
-		bool valid_unit = true;
-
-		switch (pkt->unit) {
-		case(CPU_POWER_SCALE_MIN):
-			scale_res = power_manager_scale_core_min(core_num);
-			break;
-		case(CPU_POWER_SCALE_MAX):
-			scale_res = power_manager_scale_core_max(core_num);
-			break;
-		case(CPU_POWER_SCALE_DOWN):
-			scale_res = power_manager_scale_core_down(core_num);
-			break;
-		case(CPU_POWER_SCALE_UP):
-			scale_res = power_manager_scale_core_up(core_num);
-			break;
-		case(CPU_POWER_ENABLE_TURBO):
-			scale_res = power_manager_enable_turbo_core(core_num);
-			break;
-		case(CPU_POWER_DISABLE_TURBO):
-			scale_res = power_manager_disable_turbo_core(core_num);
-			break;
-		default:
-			valid_unit = false;
-			break;
+		core_mask = get_pcpus_mask(chan_info, pkt->resource_id);
+		if (core_mask == 0) {
+			/*
+			 * Core mask will be 0 in the case where
+			 * hypervisor is not available so we're working in
+			 * the host, so use the core as the mask.
+			 */
+			core_mask = 1ULL << pkt->resource_id;
 		}
+		if (__builtin_popcountll(core_mask) == 1) {
 
-		if (valid_unit) {
-			ret = send_ack_for_received_cmd(pkt,
-					chan_info,
-					scale_res >= 0 ?
-						CPU_POWER_CMD_ACK :
-						CPU_POWER_CMD_NACK);
-			if (ret < 0)
-				RTE_LOG(ERR, CHANNEL_MONITOR, "Error during sending ack command.\n");
-		} else
-			RTE_LOG(ERR, CHANNEL_MONITOR, "Unexpected unit type.\n");
+			unsigned core_num = __builtin_ffsll(core_mask) - 1;
 
+			switch (pkt->unit) {
+			case(CPU_POWER_SCALE_MIN):
+					power_manager_scale_core_min(core_num);
+			break;
+			case(CPU_POWER_SCALE_MAX):
+					power_manager_scale_core_max(core_num);
+			break;
+			case(CPU_POWER_SCALE_DOWN):
+					power_manager_scale_core_down(core_num);
+			break;
+			case(CPU_POWER_SCALE_UP):
+					power_manager_scale_core_up(core_num);
+			break;
+			case(CPU_POWER_ENABLE_TURBO):
+				power_manager_enable_turbo_core(core_num);
+			break;
+			case(CPU_POWER_DISABLE_TURBO):
+				power_manager_disable_turbo_core(core_num);
+			break;
+			default:
+				break;
+			}
+		} else {
+			switch (pkt->unit) {
+			case(CPU_POWER_SCALE_MIN):
+					power_manager_scale_mask_min(core_mask);
+			break;
+			case(CPU_POWER_SCALE_MAX):
+					power_manager_scale_mask_max(core_mask);
+			break;
+			case(CPU_POWER_SCALE_DOWN):
+					power_manager_scale_mask_down(core_mask);
+			break;
+			case(CPU_POWER_SCALE_UP):
+					power_manager_scale_mask_up(core_mask);
+			break;
+			case(CPU_POWER_ENABLE_TURBO):
+				power_manager_enable_turbo_mask(core_mask);
+			break;
+			case(CPU_POWER_DISABLE_TURBO):
+				power_manager_disable_turbo_mask(core_mask);
+			break;
+			default:
+				break;
+			}
+
+		}
 	}
 
 	if (pkt->command == PKT_POLICY) {
 		RTE_LOG(INFO, CHANNEL_MONITOR, "Processing policy request %s\n",
 				pkt->vm_name);
-		int ret = send_ack_for_received_cmd(pkt,
-				chan_info,
-				CPU_POWER_CMD_ACK);
-		if (ret < 0)
-			RTE_LOG(ERR, CHANNEL_MONITOR, "Error during sending ack command.\n");
 		update_policy(pkt);
 		policy_is_set = 1;
 	}
 
 	if (pkt->command == PKT_POLICY_REMOVE) {
-		ret = remove_policy(pkt);
-		if (ret == 0)
-			RTE_LOG(INFO, CHANNEL_MONITOR,
-				 "Removed policy %s\n", pkt->vm_name);
-		else
-			RTE_LOG(INFO, CHANNEL_MONITOR,
-				 "Policy %s does not exist\n", pkt->vm_name);
-	}
-
-	if (pkt->command == CPU_POWER_QUERY_FREQ_LIST ||
-		pkt->command == CPU_POWER_QUERY_FREQ) {
-
 		RTE_LOG(INFO, CHANNEL_MONITOR,
-			"Frequency for %s requested.\n", pkt->vm_name);
-		int ret = send_freq(pkt,
-				chan_info,
-				pkt->command == CPU_POWER_QUERY_FREQ_LIST);
-		if (ret < 0)
-			RTE_LOG(ERR, CHANNEL_MONITOR, "Error during frequency sending.\n");
-	}
-
-	if (pkt->command == CPU_POWER_QUERY_CAPS_LIST ||
-		pkt->command == CPU_POWER_QUERY_CAPS) {
-
-		RTE_LOG(INFO, CHANNEL_MONITOR,
-			"Capabilities for %s requested.\n", pkt->vm_name);
-		int ret = send_capabilities(pkt,
-				chan_info,
-				pkt->command == CPU_POWER_QUERY_CAPS_LIST);
-		if (ret < 0)
-			RTE_LOG(ERR, CHANNEL_MONITOR, "Error during sending capabilities.\n");
+				 "Removing policy %s\n", pkt->vm_name);
+		remove_policy(pkt);
 	}
 
 	/*
@@ -998,7 +809,7 @@ read_binary_packet(struct channel_info *chan_info)
 				buffer, buffer_len);
 		if (n_bytes == buffer_len)
 			break;
-		if (n_bytes < 0) {
+		if (n_bytes == -1) {
 			err = errno;
 			RTE_LOG(DEBUG, CHANNEL_MONITOR,
 				"Received error on "
@@ -1023,10 +834,6 @@ read_json_packet(struct channel_info *chan_info)
 	int n_bytes, ret;
 	json_t *root;
 	json_error_t error;
-	const char *resource_name;
-	char *start, *end;
-	uint32_t n;
-
 
 	/* read opening brace to closing brace */
 	do {
@@ -1058,42 +865,20 @@ read_json_packet(struct channel_info *chan_info)
 		root = json_loads(json_data, 0, &error);
 
 		if (root) {
-			resource_name = get_resource_name_from_chn_path(
-				chan_info->channel_path);
 			/*
 			 * Because our data is now in the json
 			 * object, we can overwrite the pkt
 			 * with a channel_packet struct, using
 			 * parse_json_to_pkt()
 			 */
-			ret = parse_json_to_pkt(root, &pkt, resource_name);
+			ret = parse_json_to_pkt(root, &pkt);
 			json_decref(root);
 			if (ret) {
 				RTE_LOG(ERR, CHANNEL_MONITOR,
 					"Error validating JSON profile data\n");
 				break;
 			}
-			start = strstr(pkt.vm_name,
-					CHANNEL_MGR_FIFO_PATTERN_NAME);
-			if (start != NULL) {
-				/* move past pattern to start of fifo id */
-				start += strlen(CHANNEL_MGR_FIFO_PATTERN_NAME);
-
-				end = start;
-				n = (uint32_t)strtoul(start, &end, 10);
-
-				if (end[0] == '\0') {
-					/* Add core id to core list */
-					pkt.num_vcpu = 1;
-					pkt.vcpu_to_control[0] = n;
-					process_request(&pkt, chan_info);
-				} else {
-					RTE_LOG(ERR, CHANNEL_MONITOR,
-						"Cannot extract core id from fifo name\n");
-				}
-			} else {
-				process_request(&pkt, chan_info);
-			}
+			process_request(&pkt, chan_info);
 		} else {
 			RTE_LOG(ERR, CHANNEL_MONITOR,
 					"JSON error on line %d: %s\n",
@@ -1143,9 +928,9 @@ run_channel_monitor(void)
 		}
 		rte_delay_us(time_period_ms*1000);
 		if (policy_is_set) {
-			unsigned int j;
+			int j;
 
-			for (j = 0; j < RTE_DIM(policies); j++) {
+			for (j = 0; j < MAX_CLIENTS; j++) {
 				if (policies[j].enabled == 1)
 					apply_policy(&policies[j]);
 			}

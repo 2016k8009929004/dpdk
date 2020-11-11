@@ -9,11 +9,8 @@
 #include <rte_common.h>
 #include <rte_mbuf.h>
 
-#include <mlx5_prm.h>
-
 #include "mlx5_autoconf.h"
-
-#include "mlx5_mr.h"
+#include "mlx5_prm.h"
 
 /* HW checksum offload capabilities of vectorized Tx. */
 #define MLX5_VEC_TX_CKSUM_OFFLOAD_CAP \
@@ -21,6 +18,12 @@
 	 DEV_TX_OFFLOAD_UDP_CKSUM | \
 	 DEV_TX_OFFLOAD_TCP_CKSUM | \
 	 DEV_TX_OFFLOAD_OUTER_IPV4_CKSUM)
+
+/* HW offload capabilities of vectorized Tx. */
+#define MLX5_VEC_TX_OFFLOAD_CAP \
+	(MLX5_VEC_TX_CKSUM_OFFLOAD_CAP | \
+	 DEV_TX_OFFLOAD_MATCH_METADATA | \
+	 DEV_TX_OFFLOAD_MULTI_SEGS)
 
 /*
  * Compile time sanity check for vectorized functions.
@@ -57,11 +60,13 @@ S_ASSERT_MLX5_CQE(offsetof(struct mlx5_cqe, pkt_info) == 0);
 #endif
 S_ASSERT_MLX5_CQE(offsetof(struct mlx5_cqe, rx_hash_res) ==
 		  offsetof(struct mlx5_cqe, pkt_info) + 12);
-S_ASSERT_MLX5_CQE(offsetof(struct mlx5_cqe, rsvd1) + 11 ==
+S_ASSERT_MLX5_CQE(offsetof(struct mlx5_cqe, rsvd1) +
+		  sizeof(((struct mlx5_cqe *)0)->rsvd1) ==
 		  offsetof(struct mlx5_cqe, hdr_type_etc));
 S_ASSERT_MLX5_CQE(offsetof(struct mlx5_cqe, vlan_info) ==
 		  offsetof(struct mlx5_cqe, hdr_type_etc) + 2);
-S_ASSERT_MLX5_CQE(offsetof(struct mlx5_cqe, lro_num_seg) + 12 ==
+S_ASSERT_MLX5_CQE(offsetof(struct mlx5_cqe, rsvd2) +
+		  sizeof(((struct mlx5_cqe *)0)->rsvd2) ==
 		  offsetof(struct mlx5_cqe, byte_cnt));
 S_ASSERT_MLX5_CQE(offsetof(struct mlx5_cqe, sop_drop_qpn) ==
 		  RTE_ALIGN(offsetof(struct mlx5_cqe, sop_drop_qpn), 8));
@@ -87,10 +92,9 @@ mlx5_rx_replenish_bulk_mbuf(struct mlx5_rxq_data *rxq, uint16_t n)
 		&((volatile struct mlx5_wqe_data_seg *)rxq->wqes)[elts_idx];
 	unsigned int i;
 
-	MLX5_ASSERT(n >= MLX5_VPMD_RXQ_RPLNSH_THRESH(q_n));
-	MLX5_ASSERT(n <= (uint16_t)(q_n - (rxq->rq_ci - rxq->rq_pi)));
-	MLX5_ASSERT(MLX5_VPMD_RXQ_RPLNSH_THRESH(q_n) >
-		    MLX5_VPMD_DESCS_PER_LOOP);
+	assert(n >= MLX5_VPMD_RXQ_RPLNSH_THRESH(q_n));
+	assert(n <= (uint16_t)(q_n - (rxq->rq_ci - rxq->rq_pi)));
+	assert(MLX5_VPMD_RXQ_RPLNSH_THRESH(q_n) > MLX5_VPMD_DESCS_PER_LOOP);
 	/* Not to cross queue end. */
 	n = RTE_MIN(n - MLX5_VPMD_DESCS_PER_LOOP, q_n - elts_idx);
 	if (rte_mempool_get_bulk(rxq->mp, (void *)elts, n) < 0) {
@@ -101,12 +105,18 @@ mlx5_rx_replenish_bulk_mbuf(struct mlx5_rxq_data *rxq, uint16_t n)
 		void *buf_addr;
 
 		/*
-		 * In order to support the mbufs with external attached
-		 * data buffer we should use the buf_addr pointer instead of
-		 * rte_mbuf_buf_addr(). It touches the mbuf itself and may
-		 * impact the performance.
+		 * Load the virtual address for Rx WQE. non-x86 processors
+		 * (mostly RISC such as ARM and Power) are more vulnerable to
+		 * load stall. For x86, reducing the number of instructions
+		 * seems to matter most.
 		 */
+#ifdef RTE_ARCH_X86_64
 		buf_addr = elts[i]->buf_addr;
+#else
+		buf_addr = (char *)elts[i] + sizeof(struct rte_mbuf) +
+			   rte_pktmbuf_priv_size(rxq->mp);
+		assert(buf_addr == elts[i]->buf_addr);
+#endif
 		wq[i].addr = rte_cpu_to_be_64((uintptr_t)buf_addr +
 					      RTE_PKTMBUF_HEADROOM);
 		/* If there's only one MR, no need to replace LKey in WQE. */

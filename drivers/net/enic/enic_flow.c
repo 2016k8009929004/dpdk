@@ -16,6 +16,13 @@
 #include "vnic_dev.h"
 #include "vnic_nic.h"
 
+#define FLOW_TRACE() \
+	rte_log(RTE_LOG_DEBUG, enicpmd_logtype_flow, \
+		"%s()\n", __func__)
+#define FLOW_LOG(level, fmt, args...) \
+	rte_log(RTE_LOG_ ## level, enicpmd_logtype_flow, \
+		fmt "\n", ##args)
+
 /*
  * Common arguments passed to copy_item functions. Use this structure
  * so we can easily add new arguments.
@@ -47,7 +54,7 @@ struct enic_items {
 	/** True if it's OK for this item to be the first item. For some NIC
 	 * versions, it's invalid to start the stack above layer 3.
 	 */
-	const uint8_t valid_start_item;
+	const u8 valid_start_item;
 	/* Inner packet version of copy_item. */
 	enic_copy_item_fn *inner_copy_item;
 };
@@ -61,8 +68,7 @@ struct enic_filter_cap {
 };
 
 /* functions for copying flow actions into enic actions */
-typedef int (copy_action_fn)(struct enic *enic,
-			     const struct rte_flow_action actions[],
+typedef int (copy_action_fn)(const struct rte_flow_action actions[],
 			     struct filter_action_v2 *enic_action);
 
 /** Action capabilities for various NICs. */
@@ -70,14 +76,14 @@ struct enic_action_cap {
 	/** list of valid actions */
 	const enum rte_flow_action_type *actions;
 	/** copy function for a particular NIC */
-	copy_action_fn *copy_fn;
+	int (*copy_fn)(const struct rte_flow_action actions[],
+		       struct filter_action_v2 *enic_action);
 };
 
 /* Forward declarations */
 static enic_copy_item_fn enic_copy_item_ipv4_v1;
 static enic_copy_item_fn enic_copy_item_udp_v1;
 static enic_copy_item_fn enic_copy_item_tcp_v1;
-static enic_copy_item_fn enic_copy_item_raw_v2;
 static enic_copy_item_fn enic_copy_item_eth_v2;
 static enic_copy_item_fn enic_copy_item_vlan_v2;
 static enic_copy_item_fn enic_copy_item_ipv4_v2;
@@ -133,15 +139,6 @@ static const struct enic_items enic_items_v1[] = {
  * that layer 3 must be specified.
  */
 static const struct enic_items enic_items_v2[] = {
-	[RTE_FLOW_ITEM_TYPE_RAW] = {
-		.copy_item = enic_copy_item_raw_v2,
-		.valid_start_item = 0,
-		.prev_items = (const enum rte_flow_item_type[]) {
-			       RTE_FLOW_ITEM_TYPE_UDP,
-			       RTE_FLOW_ITEM_TYPE_END,
-		},
-		.inner_copy_item = NULL,
-	},
 	[RTE_FLOW_ITEM_TYPE_ETH] = {
 		.copy_item = enic_copy_item_eth_v2,
 		.valid_start_item = 1,
@@ -223,15 +220,6 @@ static const struct enic_items enic_items_v2[] = {
 
 /** NICs with Advanced filters enabled */
 static const struct enic_items enic_items_v3[] = {
-	[RTE_FLOW_ITEM_TYPE_RAW] = {
-		.copy_item = enic_copy_item_raw_v2,
-		.valid_start_item = 0,
-		.prev_items = (const enum rte_flow_item_type[]) {
-			       RTE_FLOW_ITEM_TYPE_UDP,
-			       RTE_FLOW_ITEM_TYPE_END,
-		},
-		.inner_copy_item = NULL,
-	},
 	[RTE_FLOW_ITEM_TYPE_ETH] = {
 		.copy_item = enic_copy_item_eth_v2,
 		.valid_start_item = 1,
@@ -338,8 +326,6 @@ static const enum rte_flow_action_type enic_supported_actions_v2_id[] = {
 	RTE_FLOW_ACTION_TYPE_QUEUE,
 	RTE_FLOW_ACTION_TYPE_MARK,
 	RTE_FLOW_ACTION_TYPE_FLAG,
-	RTE_FLOW_ACTION_TYPE_RSS,
-	RTE_FLOW_ACTION_TYPE_PASSTHRU,
 	RTE_FLOW_ACTION_TYPE_END,
 };
 
@@ -348,8 +334,6 @@ static const enum rte_flow_action_type enic_supported_actions_v2_drop[] = {
 	RTE_FLOW_ACTION_TYPE_MARK,
 	RTE_FLOW_ACTION_TYPE_FLAG,
 	RTE_FLOW_ACTION_TYPE_DROP,
-	RTE_FLOW_ACTION_TYPE_RSS,
-	RTE_FLOW_ACTION_TYPE_PASSTHRU,
 	RTE_FLOW_ACTION_TYPE_END,
 };
 
@@ -370,7 +354,7 @@ static const struct enic_action_cap enic_action_cap[] = {
 };
 
 static int
-mask_exact_match(const uint8_t *supported, const uint8_t *supplied,
+mask_exact_match(const u8 *supported, const u8 *supplied,
 		 unsigned int size)
 {
 	unsigned int i;
@@ -389,26 +373,26 @@ enic_copy_item_ipv4_v1(struct copy_item_args *arg)
 	const struct rte_flow_item_ipv4 *spec = item->spec;
 	const struct rte_flow_item_ipv4 *mask = item->mask;
 	struct filter_ipv4_5tuple *enic_5tup = &enic_filter->u.ipv4;
-	struct rte_ipv4_hdr supported_mask = {
+	struct ipv4_hdr supported_mask = {
 		.src_addr = 0xffffffff,
 		.dst_addr = 0xffffffff,
 	};
 
-	ENICPMD_FUNC_TRACE();
+	FLOW_TRACE();
 
 	if (!mask)
 		mask = &rte_flow_item_ipv4_mask;
 
 	/* This is an exact match filter, both fields must be set */
 	if (!spec || !spec->hdr.src_addr || !spec->hdr.dst_addr) {
-		ENICPMD_LOG(ERR, "IPv4 exact match src/dst addr");
+		FLOW_LOG(ERR, "IPv4 exact match src/dst addr");
 		return ENOTSUP;
 	}
 
 	/* check that the suppied mask exactly matches capabilty */
-	if (!mask_exact_match((const uint8_t *)&supported_mask,
-			      (const uint8_t *)item->mask, sizeof(*mask))) {
-		ENICPMD_LOG(ERR, "IPv4 exact match mask");
+	if (!mask_exact_match((const u8 *)&supported_mask,
+			      (const u8 *)item->mask, sizeof(*mask))) {
+		FLOW_LOG(ERR, "IPv4 exact match mask");
 		return ENOTSUP;
 	}
 
@@ -427,26 +411,26 @@ enic_copy_item_udp_v1(struct copy_item_args *arg)
 	const struct rte_flow_item_udp *spec = item->spec;
 	const struct rte_flow_item_udp *mask = item->mask;
 	struct filter_ipv4_5tuple *enic_5tup = &enic_filter->u.ipv4;
-	struct rte_udp_hdr supported_mask = {
+	struct udp_hdr supported_mask = {
 		.src_port = 0xffff,
 		.dst_port = 0xffff,
 	};
 
-	ENICPMD_FUNC_TRACE();
+	FLOW_TRACE();
 
 	if (!mask)
 		mask = &rte_flow_item_udp_mask;
 
 	/* This is an exact match filter, both ports must be set */
 	if (!spec || !spec->hdr.src_port || !spec->hdr.dst_port) {
-		ENICPMD_LOG(ERR, "UDP exact match src/dst addr");
+		FLOW_LOG(ERR, "UDP exact match src/dst addr");
 		return ENOTSUP;
 	}
 
 	/* check that the suppied mask exactly matches capabilty */
-	if (!mask_exact_match((const uint8_t *)&supported_mask,
-			      (const uint8_t *)item->mask, sizeof(*mask))) {
-		ENICPMD_LOG(ERR, "UDP exact match mask");
+	if (!mask_exact_match((const u8 *)&supported_mask,
+			      (const u8 *)item->mask, sizeof(*mask))) {
+		FLOW_LOG(ERR, "UDP exact match mask");
 		return ENOTSUP;
 	}
 
@@ -466,26 +450,26 @@ enic_copy_item_tcp_v1(struct copy_item_args *arg)
 	const struct rte_flow_item_tcp *spec = item->spec;
 	const struct rte_flow_item_tcp *mask = item->mask;
 	struct filter_ipv4_5tuple *enic_5tup = &enic_filter->u.ipv4;
-	struct rte_tcp_hdr supported_mask = {
+	struct tcp_hdr supported_mask = {
 		.src_port = 0xffff,
 		.dst_port = 0xffff,
 	};
 
-	ENICPMD_FUNC_TRACE();
+	FLOW_TRACE();
 
 	if (!mask)
 		mask = &rte_flow_item_tcp_mask;
 
 	/* This is an exact match filter, both ports must be set */
 	if (!spec || !spec->hdr.src_port || !spec->hdr.dst_port) {
-		ENICPMD_LOG(ERR, "TCPIPv4 exact match src/dst addr");
+		FLOW_LOG(ERR, "TCPIPv4 exact match src/dst addr");
 		return ENOTSUP;
 	}
 
 	/* check that the suppied mask exactly matches capabilty */
-	if (!mask_exact_match((const uint8_t *)&supported_mask,
-			     (const uint8_t *)item->mask, sizeof(*mask))) {
-		ENICPMD_LOG(ERR, "TCP exact match mask");
+	if (!mask_exact_match((const u8 *)&supported_mask,
+			     (const u8 *)item->mask, sizeof(*mask))) {
+		FLOW_LOG(ERR, "TCP exact match mask");
 		return ENOTSUP;
 	}
 
@@ -547,12 +531,12 @@ enic_copy_item_inner_eth_v2(struct copy_item_args *arg)
 	const void *mask = arg->item->mask;
 	uint8_t *off = arg->inner_ofst;
 
-	ENICPMD_FUNC_TRACE();
+	FLOW_TRACE();
 	if (!mask)
 		mask = &rte_flow_item_eth_mask;
-	arg->l2_proto_off = *off + offsetof(struct rte_ether_hdr, ether_type);
+	arg->l2_proto_off = *off + offsetof(struct ether_hdr, ether_type);
 	return copy_inner_common(&arg->filter->u.generic_1, off,
-		arg->item->spec, mask, sizeof(struct rte_ether_hdr),
+		arg->item->spec, mask, sizeof(struct ether_hdr),
 		0 /* no previous protocol */, 0, 0);
 }
 
@@ -563,15 +547,15 @@ enic_copy_item_inner_vlan_v2(struct copy_item_args *arg)
 	uint8_t *off = arg->inner_ofst;
 	uint8_t eth_type_off;
 
-	ENICPMD_FUNC_TRACE();
+	FLOW_TRACE();
 	if (!mask)
 		mask = &rte_flow_item_vlan_mask;
 	/* Append vlan header to L5 and set ether type = TPID */
 	eth_type_off = arg->l2_proto_off;
-	arg->l2_proto_off = *off + offsetof(struct rte_vlan_hdr, eth_proto);
+	arg->l2_proto_off = *off + offsetof(struct vlan_hdr, eth_proto);
 	return copy_inner_common(&arg->filter->u.generic_1, off,
-		arg->item->spec, mask, sizeof(struct rte_vlan_hdr),
-		eth_type_off, rte_cpu_to_be_16(RTE_ETHER_TYPE_VLAN), 2);
+		arg->item->spec, mask, sizeof(struct vlan_hdr),
+		eth_type_off, rte_cpu_to_be_16(ETHER_TYPE_VLAN), 2);
 }
 
 static int
@@ -580,14 +564,14 @@ enic_copy_item_inner_ipv4_v2(struct copy_item_args *arg)
 	const void *mask = arg->item->mask;
 	uint8_t *off = arg->inner_ofst;
 
-	ENICPMD_FUNC_TRACE();
+	FLOW_TRACE();
 	if (!mask)
 		mask = &rte_flow_item_ipv4_mask;
 	/* Append ipv4 header to L5 and set ether type = ipv4 */
-	arg->l3_proto_off = *off + offsetof(struct rte_ipv4_hdr, next_proto_id);
+	arg->l3_proto_off = *off + offsetof(struct ipv4_hdr, next_proto_id);
 	return copy_inner_common(&arg->filter->u.generic_1, off,
-		arg->item->spec, mask, sizeof(struct rte_ipv4_hdr),
-		arg->l2_proto_off, rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4), 2);
+		arg->item->spec, mask, sizeof(struct ipv4_hdr),
+		arg->l2_proto_off, rte_cpu_to_be_16(ETHER_TYPE_IPv4), 2);
 }
 
 static int
@@ -596,14 +580,14 @@ enic_copy_item_inner_ipv6_v2(struct copy_item_args *arg)
 	const void *mask = arg->item->mask;
 	uint8_t *off = arg->inner_ofst;
 
-	ENICPMD_FUNC_TRACE();
+	FLOW_TRACE();
 	if (!mask)
 		mask = &rte_flow_item_ipv6_mask;
 	/* Append ipv6 header to L5 and set ether type = ipv6 */
-	arg->l3_proto_off = *off + offsetof(struct rte_ipv6_hdr, proto);
+	arg->l3_proto_off = *off + offsetof(struct ipv6_hdr, proto);
 	return copy_inner_common(&arg->filter->u.generic_1, off,
-		arg->item->spec, mask, sizeof(struct rte_ipv6_hdr),
-		arg->l2_proto_off, rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV6), 2);
+		arg->item->spec, mask, sizeof(struct ipv6_hdr),
+		arg->l2_proto_off, rte_cpu_to_be_16(ETHER_TYPE_IPv6), 2);
 }
 
 static int
@@ -612,12 +596,12 @@ enic_copy_item_inner_udp_v2(struct copy_item_args *arg)
 	const void *mask = arg->item->mask;
 	uint8_t *off = arg->inner_ofst;
 
-	ENICPMD_FUNC_TRACE();
+	FLOW_TRACE();
 	if (!mask)
 		mask = &rte_flow_item_udp_mask;
 	/* Append udp header to L5 and set ip proto = udp */
 	return copy_inner_common(&arg->filter->u.generic_1, off,
-		arg->item->spec, mask, sizeof(struct rte_udp_hdr),
+		arg->item->spec, mask, sizeof(struct udp_hdr),
 		arg->l3_proto_off, IPPROTO_UDP, 1);
 }
 
@@ -627,12 +611,12 @@ enic_copy_item_inner_tcp_v2(struct copy_item_args *arg)
 	const void *mask = arg->item->mask;
 	uint8_t *off = arg->inner_ofst;
 
-	ENICPMD_FUNC_TRACE();
+	FLOW_TRACE();
 	if (!mask)
 		mask = &rte_flow_item_tcp_mask;
 	/* Append tcp header to L5 and set ip proto = tcp */
 	return copy_inner_common(&arg->filter->u.generic_1, off,
-		arg->item->spec, mask, sizeof(struct rte_tcp_hdr),
+		arg->item->spec, mask, sizeof(struct tcp_hdr),
 		arg->l3_proto_off, IPPROTO_TCP, 1);
 }
 
@@ -641,13 +625,13 @@ enic_copy_item_eth_v2(struct copy_item_args *arg)
 {
 	const struct rte_flow_item *item = arg->item;
 	struct filter_v2 *enic_filter = arg->filter;
-	struct rte_ether_hdr enic_spec;
-	struct rte_ether_hdr enic_mask;
+	struct ether_hdr enic_spec;
+	struct ether_hdr enic_mask;
 	const struct rte_flow_item_eth *spec = item->spec;
 	const struct rte_flow_item_eth *mask = item->mask;
 	struct filter_generic_1 *gp = &enic_filter->u.generic_1;
 
-	ENICPMD_FUNC_TRACE();
+	FLOW_TRACE();
 
 	/* Match all if no spec */
 	if (!spec)
@@ -657,22 +641,22 @@ enic_copy_item_eth_v2(struct copy_item_args *arg)
 		mask = &rte_flow_item_eth_mask;
 
 	memcpy(enic_spec.d_addr.addr_bytes, spec->dst.addr_bytes,
-	       RTE_ETHER_ADDR_LEN);
+	       ETHER_ADDR_LEN);
 	memcpy(enic_spec.s_addr.addr_bytes, spec->src.addr_bytes,
-	       RTE_ETHER_ADDR_LEN);
+	       ETHER_ADDR_LEN);
 
 	memcpy(enic_mask.d_addr.addr_bytes, mask->dst.addr_bytes,
-	       RTE_ETHER_ADDR_LEN);
+	       ETHER_ADDR_LEN);
 	memcpy(enic_mask.s_addr.addr_bytes, mask->src.addr_bytes,
-	       RTE_ETHER_ADDR_LEN);
+	       ETHER_ADDR_LEN);
 	enic_spec.ether_type = spec->type;
 	enic_mask.ether_type = mask->type;
 
 	/* outer header */
 	memcpy(gp->layer[FILTER_GENERIC_1_L2].mask, &enic_mask,
-	       sizeof(struct rte_ether_hdr));
+	       sizeof(struct ether_hdr));
 	memcpy(gp->layer[FILTER_GENERIC_1_L2].val, &enic_spec,
-	       sizeof(struct rte_ether_hdr));
+	       sizeof(struct ether_hdr));
 	return 0;
 }
 
@@ -684,10 +668,10 @@ enic_copy_item_vlan_v2(struct copy_item_args *arg)
 	const struct rte_flow_item_vlan *spec = item->spec;
 	const struct rte_flow_item_vlan *mask = item->mask;
 	struct filter_generic_1 *gp = &enic_filter->u.generic_1;
-	struct rte_ether_hdr *eth_mask;
-	struct rte_ether_hdr *eth_val;
+	struct ether_hdr *eth_mask;
+	struct ether_hdr *eth_val;
 
-	ENICPMD_FUNC_TRACE();
+	FLOW_TRACE();
 
 	/* Match all if no spec */
 	if (!spec)
@@ -712,11 +696,11 @@ enic_copy_item_vlan_v2(struct copy_item_args *arg)
 	 * vlan tag remains in the L2 buffer.
 	 */
 	if (!arg->enic->vxlan && !arg->enic->ig_vlan_strip_en) {
-		struct rte_vlan_hdr *vlan;
+		struct vlan_hdr *vlan;
 
-		vlan = (struct rte_vlan_hdr *)(eth_mask + 1);
+		vlan = (struct vlan_hdr *)(eth_mask + 1);
 		vlan->eth_proto = mask->inner_type;
-		vlan = (struct rte_vlan_hdr *)(eth_val + 1);
+		vlan = (struct vlan_hdr *)(eth_val + 1);
 		vlan->eth_proto = spec->inner_type;
 	} else {
 		eth_mask->ether_type = mask->inner_type;
@@ -737,7 +721,7 @@ enic_copy_item_ipv4_v2(struct copy_item_args *arg)
 	const struct rte_flow_item_ipv4 *mask = item->mask;
 	struct filter_generic_1 *gp = &enic_filter->u.generic_1;
 
-	ENICPMD_FUNC_TRACE();
+	FLOW_TRACE();
 
 	/* Match IPv4 */
 	gp->mask_flags |= FILTER_GENERIC_1_IPV4;
@@ -751,9 +735,9 @@ enic_copy_item_ipv4_v2(struct copy_item_args *arg)
 		mask = &rte_flow_item_ipv4_mask;
 
 	memcpy(gp->layer[FILTER_GENERIC_1_L3].mask, &mask->hdr,
-	       sizeof(struct rte_ipv4_hdr));
+	       sizeof(struct ipv4_hdr));
 	memcpy(gp->layer[FILTER_GENERIC_1_L3].val, &spec->hdr,
-	       sizeof(struct rte_ipv4_hdr));
+	       sizeof(struct ipv4_hdr));
 	return 0;
 }
 
@@ -766,7 +750,7 @@ enic_copy_item_ipv6_v2(struct copy_item_args *arg)
 	const struct rte_flow_item_ipv6 *mask = item->mask;
 	struct filter_generic_1 *gp = &enic_filter->u.generic_1;
 
-	ENICPMD_FUNC_TRACE();
+	FLOW_TRACE();
 
 	/* Match IPv6 */
 	gp->mask_flags |= FILTER_GENERIC_1_IPV6;
@@ -780,9 +764,9 @@ enic_copy_item_ipv6_v2(struct copy_item_args *arg)
 		mask = &rte_flow_item_ipv6_mask;
 
 	memcpy(gp->layer[FILTER_GENERIC_1_L3].mask, &mask->hdr,
-	       sizeof(struct rte_ipv6_hdr));
+	       sizeof(struct ipv6_hdr));
 	memcpy(gp->layer[FILTER_GENERIC_1_L3].val, &spec->hdr,
-	       sizeof(struct rte_ipv6_hdr));
+	       sizeof(struct ipv6_hdr));
 	return 0;
 }
 
@@ -795,7 +779,7 @@ enic_copy_item_udp_v2(struct copy_item_args *arg)
 	const struct rte_flow_item_udp *mask = item->mask;
 	struct filter_generic_1 *gp = &enic_filter->u.generic_1;
 
-	ENICPMD_FUNC_TRACE();
+	FLOW_TRACE();
 
 	/* Match UDP */
 	gp->mask_flags |= FILTER_GENERIC_1_UDP;
@@ -809,9 +793,9 @@ enic_copy_item_udp_v2(struct copy_item_args *arg)
 		mask = &rte_flow_item_udp_mask;
 
 	memcpy(gp->layer[FILTER_GENERIC_1_L4].mask, &mask->hdr,
-	       sizeof(struct rte_udp_hdr));
+	       sizeof(struct udp_hdr));
 	memcpy(gp->layer[FILTER_GENERIC_1_L4].val, &spec->hdr,
-	       sizeof(struct rte_udp_hdr));
+	       sizeof(struct udp_hdr));
 	return 0;
 }
 
@@ -824,7 +808,7 @@ enic_copy_item_tcp_v2(struct copy_item_args *arg)
 	const struct rte_flow_item_tcp *mask = item->mask;
 	struct filter_generic_1 *gp = &enic_filter->u.generic_1;
 
-	ENICPMD_FUNC_TRACE();
+	FLOW_TRACE();
 
 	/* Match TCP */
 	gp->mask_flags |= FILTER_GENERIC_1_TCP;
@@ -838,9 +822,9 @@ enic_copy_item_tcp_v2(struct copy_item_args *arg)
 		return ENOTSUP;
 
 	memcpy(gp->layer[FILTER_GENERIC_1_L4].mask, &mask->hdr,
-	       sizeof(struct rte_tcp_hdr));
+	       sizeof(struct tcp_hdr));
 	memcpy(gp->layer[FILTER_GENERIC_1_L4].val, &spec->hdr,
-	       sizeof(struct rte_tcp_hdr));
+	       sizeof(struct tcp_hdr));
 	return 0;
 }
 
@@ -855,23 +839,23 @@ enic_copy_item_sctp_v2(struct copy_item_args *arg)
 	uint8_t *ip_proto_mask = NULL;
 	uint8_t *ip_proto = NULL;
 
-	ENICPMD_FUNC_TRACE();
+	FLOW_TRACE();
 
 	/*
 	 * The NIC filter API has no flags for "match sctp", so explicitly set
 	 * the protocol number in the IP pattern.
 	 */
 	if (gp->val_flags & FILTER_GENERIC_1_IPV4) {
-		struct rte_ipv4_hdr *ip;
-		ip = (struct rte_ipv4_hdr *)gp->layer[FILTER_GENERIC_1_L3].mask;
+		struct ipv4_hdr *ip;
+		ip = (struct ipv4_hdr *)gp->layer[FILTER_GENERIC_1_L3].mask;
 		ip_proto_mask = &ip->next_proto_id;
-		ip = (struct rte_ipv4_hdr *)gp->layer[FILTER_GENERIC_1_L3].val;
+		ip = (struct ipv4_hdr *)gp->layer[FILTER_GENERIC_1_L3].val;
 		ip_proto = &ip->next_proto_id;
 	} else if (gp->val_flags & FILTER_GENERIC_1_IPV6) {
-		struct rte_ipv6_hdr *ip;
-		ip = (struct rte_ipv6_hdr *)gp->layer[FILTER_GENERIC_1_L3].mask;
+		struct ipv6_hdr *ip;
+		ip = (struct ipv6_hdr *)gp->layer[FILTER_GENERIC_1_L3].mask;
 		ip_proto_mask = &ip->proto;
-		ip = (struct rte_ipv6_hdr *)gp->layer[FILTER_GENERIC_1_L3].val;
+		ip = (struct ipv6_hdr *)gp->layer[FILTER_GENERIC_1_L3].val;
 		ip_proto = &ip->proto;
 	} else {
 		/* Need IPv4/IPv6 pattern first */
@@ -888,9 +872,9 @@ enic_copy_item_sctp_v2(struct copy_item_args *arg)
 		mask = &rte_flow_item_sctp_mask;
 
 	memcpy(gp->layer[FILTER_GENERIC_1_L4].mask, &mask->hdr,
-	       sizeof(struct rte_sctp_hdr));
+	       sizeof(struct sctp_hdr));
 	memcpy(gp->layer[FILTER_GENERIC_1_L4].val, &spec->hdr,
-	       sizeof(struct rte_sctp_hdr));
+	       sizeof(struct sctp_hdr));
 	return 0;
 }
 
@@ -903,9 +887,9 @@ enic_copy_item_vxlan_v2(struct copy_item_args *arg)
 	const struct rte_flow_item_vxlan *spec = item->spec;
 	const struct rte_flow_item_vxlan *mask = item->mask;
 	struct filter_generic_1 *gp = &enic_filter->u.generic_1;
-	struct rte_udp_hdr *udp;
+	struct udp_hdr *udp;
 
-	ENICPMD_FUNC_TRACE();
+	FLOW_TRACE();
 
 	/*
 	 * The NIC filter API has no flags for "match vxlan". Set UDP port to
@@ -913,9 +897,9 @@ enic_copy_item_vxlan_v2(struct copy_item_args *arg)
 	 */
 	gp->mask_flags |= FILTER_GENERIC_1_UDP;
 	gp->val_flags |= FILTER_GENERIC_1_UDP;
-	udp = (struct rte_udp_hdr *)gp->layer[FILTER_GENERIC_1_L4].mask;
+	udp = (struct udp_hdr *)gp->layer[FILTER_GENERIC_1_L4].mask;
 	udp->dst_port = 0xffff;
-	udp = (struct rte_udp_hdr *)gp->layer[FILTER_GENERIC_1_L4].val;
+	udp = (struct udp_hdr *)gp->layer[FILTER_GENERIC_1_L4].val;
 	udp->dst_port = RTE_BE16(4789);
 	/* Match all if no spec */
 	if (!spec)
@@ -925,60 +909,11 @@ enic_copy_item_vxlan_v2(struct copy_item_args *arg)
 		mask = &rte_flow_item_vxlan_mask;
 
 	memcpy(gp->layer[FILTER_GENERIC_1_L5].mask, mask,
-	       sizeof(struct rte_vxlan_hdr));
+	       sizeof(struct vxlan_hdr));
 	memcpy(gp->layer[FILTER_GENERIC_1_L5].val, spec,
-	       sizeof(struct rte_vxlan_hdr));
+	       sizeof(struct vxlan_hdr));
 
-	*inner_ofst = sizeof(struct rte_vxlan_hdr);
-	return 0;
-}
-
-/*
- * Copy raw item into version 2 NIC filter. Currently, raw pattern match is
- * very limited. It is intended for matching UDP tunnel header (e.g. vxlan
- * or geneve).
- */
-static int
-enic_copy_item_raw_v2(struct copy_item_args *arg)
-{
-	const struct rte_flow_item *item = arg->item;
-	struct filter_v2 *enic_filter = arg->filter;
-	uint8_t *inner_ofst = arg->inner_ofst;
-	const struct rte_flow_item_raw *spec = item->spec;
-	const struct rte_flow_item_raw *mask = item->mask;
-	struct filter_generic_1 *gp = &enic_filter->u.generic_1;
-
-	ENICPMD_FUNC_TRACE();
-
-	/* Cannot be used for inner packet */
-	if (*inner_ofst)
-		return EINVAL;
-	/* Need both spec and mask */
-	if (!spec || !mask)
-		return EINVAL;
-	/* Only supports relative with offset 0 */
-	if (!spec->relative || spec->offset != 0 || spec->search || spec->limit)
-		return EINVAL;
-	/* Need non-null pattern that fits within the NIC's filter pattern */
-	if (spec->length == 0 ||
-	    spec->length + sizeof(struct rte_udp_hdr) > FILTER_GENERIC_1_KEY_LEN ||
-	    !spec->pattern || !mask->pattern)
-		return EINVAL;
-	/*
-	 * Mask fields, including length, are often set to zero. Assume that
-	 * means "same as spec" to avoid breaking existing apps. If length
-	 * is not zero, then it should be >= spec length.
-	 *
-	 * No more pattern follows this, so append to the L4 layer instead of
-	 * L5 to work with both recent and older VICs.
-	 */
-	if (mask->length != 0 && mask->length < spec->length)
-		return EINVAL;
-	memcpy(gp->layer[FILTER_GENERIC_1_L4].mask + sizeof(struct rte_udp_hdr),
-	       mask->pattern, spec->length);
-	memcpy(gp->layer[FILTER_GENERIC_1_L4].val + sizeof(struct rte_udp_hdr),
-	       spec->pattern, spec->length);
-
+	*inner_ofst = sizeof(struct vxlan_hdr);
 	return 0;
 }
 
@@ -995,11 +930,11 @@ enic_copy_item_raw_v2(struct copy_item_args *arg)
  */
 static int
 item_stacking_valid(enum rte_flow_item_type prev_item,
-		    const struct enic_items *item_info, uint8_t is_first_item)
+		    const struct enic_items *item_info, u8 is_first_item)
 {
 	enum rte_flow_item_type const *allowed_items = item_info->prev_items;
 
-	ENICPMD_FUNC_TRACE();
+	FLOW_TRACE();
 
 	for (; *allowed_items != RTE_FLOW_ITEM_TYPE_END; allowed_items++) {
 		if (prev_item == *allowed_items)
@@ -1028,11 +963,11 @@ fixup_l5_layer(struct enic *enic, struct filter_generic_1 *gp,
 
 	if (!(inner_ofst > 0 && enic->vxlan))
 		return;
-	ENICPMD_FUNC_TRACE();
-	vxlan = sizeof(struct rte_vxlan_hdr);
-	memcpy(gp->layer[FILTER_GENERIC_1_L4].mask + sizeof(struct rte_udp_hdr),
+	FLOW_TRACE();
+	vxlan = sizeof(struct vxlan_hdr);
+	memcpy(gp->layer[FILTER_GENERIC_1_L4].mask + sizeof(struct udp_hdr),
 	       gp->layer[FILTER_GENERIC_1_L5].mask, vxlan);
-	memcpy(gp->layer[FILTER_GENERIC_1_L4].val + sizeof(struct rte_udp_hdr),
+	memcpy(gp->layer[FILTER_GENERIC_1_L4].val + sizeof(struct udp_hdr),
 	       gp->layer[FILTER_GENERIC_1_L5].val, vxlan);
 	inner = inner_ofst - vxlan;
 	memset(layer, 0, sizeof(layer));
@@ -1063,14 +998,14 @@ enic_copy_filter(const struct rte_flow_item pattern[],
 {
 	int ret;
 	const struct rte_flow_item *item = pattern;
-	uint8_t inner_ofst = 0; /* If encapsulated, ofst into L5 */
+	u8 inner_ofst = 0; /* If encapsulated, ofst into L5 */
 	enum rte_flow_item_type prev_item;
 	const struct enic_items *item_info;
 	struct copy_item_args args;
 	enic_copy_item_fn *copy_fn;
-	uint8_t is_first_item = 1;
+	u8 is_first_item = 1;
 
-	ENICPMD_FUNC_TRACE();
+	FLOW_TRACE();
 
 	prev_item = 0;
 
@@ -1132,14 +1067,13 @@ stacking_error:
  * @param error[out]
  */
 static int
-enic_copy_action_v1(__rte_unused struct enic *enic,
-		    const struct rte_flow_action actions[],
+enic_copy_action_v1(const struct rte_flow_action actions[],
 		    struct filter_action_v2 *enic_action)
 {
 	enum { FATE = 1, };
 	uint32_t overlap = 0;
 
-	ENICPMD_FUNC_TRACE();
+	FLOW_TRACE();
 
 	for (; actions->type != RTE_FLOW_ACTION_TYPE_END; actions++) {
 		if (actions->type == RTE_FLOW_ACTION_TYPE_VOID)
@@ -1179,15 +1113,13 @@ enic_copy_action_v1(__rte_unused struct enic *enic,
  * @param error[out]
  */
 static int
-enic_copy_action_v2(struct enic *enic,
-		    const struct rte_flow_action actions[],
+enic_copy_action_v2(const struct rte_flow_action actions[],
 		    struct filter_action_v2 *enic_action)
 {
 	enum { FATE = 1, MARK = 2, };
 	uint32_t overlap = 0;
-	bool passthru = false;
 
-	ENICPMD_FUNC_TRACE();
+	FLOW_TRACE();
 
 	for (; actions->type != RTE_FLOW_ACTION_TYPE_END; actions++) {
 		switch (actions->type) {
@@ -1243,50 +1175,6 @@ enic_copy_action_v2(struct enic *enic,
 			enic_action->flags |= FILTER_ACTION_DROP_FLAG;
 			break;
 		}
-		case RTE_FLOW_ACTION_TYPE_RSS: {
-			const struct rte_flow_action_rss *rss =
-				(const struct rte_flow_action_rss *)
-				actions->conf;
-			bool allow;
-			uint16_t i;
-
-			/*
-			 * Hardware does not support general RSS actions, but
-			 * we can still support the dummy one that is used to
-			 * "receive normally".
-			 */
-			allow = rss->func == RTE_ETH_HASH_FUNCTION_DEFAULT &&
-				rss->level == 0 &&
-				(rss->types == 0 ||
-				 rss->types == enic->rss_hf) &&
-				rss->queue_num == enic->rq_count &&
-				rss->key_len == 0;
-			/* Identity queue map is ok */
-			for (i = 0; i < rss->queue_num; i++)
-				allow = allow && (i == rss->queue[i]);
-			if (!allow)
-				return ENOTSUP;
-			if (overlap & FATE)
-				return ENOTSUP;
-			/* Need MARK or FLAG */
-			if (!(overlap & MARK))
-				return ENOTSUP;
-			overlap |= FATE;
-			break;
-		}
-		case RTE_FLOW_ACTION_TYPE_PASSTHRU: {
-			/*
-			 * Like RSS above, PASSTHRU + MARK may be used to
-			 * "mark and then receive normally". MARK usually comes
-			 * after PASSTHRU, so remember we have seen passthru
-			 * and check for mark later.
-			 */
-			if (overlap & FATE)
-				return ENOTSUP;
-			overlap |= FATE;
-			passthru = true;
-			break;
-		}
 		case RTE_FLOW_ACTION_TYPE_VOID:
 			continue;
 		default:
@@ -1294,9 +1182,6 @@ enic_copy_action_v2(struct enic *enic,
 			break;
 		}
 	}
-	/* Only PASSTHRU + MARK is allowed */
-	if (passthru && !(overlap & MARK))
-		return ENOTSUP;
 	if (!(overlap & FATE))
 		return ENOTSUP;
 	enic_action->type = FILTER_ACTION_V2;
@@ -1348,14 +1233,14 @@ static void
 enic_dump_actions(const struct filter_action_v2 *ea)
 {
 	if (ea->type == FILTER_ACTION_RQ_STEERING) {
-		ENICPMD_LOG(INFO, "Action(V1), queue: %u\n", ea->rq_idx);
+		FLOW_LOG(INFO, "Action(V1), queue: %u\n", ea->rq_idx);
 	} else if (ea->type == FILTER_ACTION_V2) {
-		ENICPMD_LOG(INFO, "Actions(V2)\n");
+		FLOW_LOG(INFO, "Actions(V2)\n");
 		if (ea->flags & FILTER_ACTION_RQ_STEERING_FLAG)
-			ENICPMD_LOG(INFO, "\tqueue: %u\n",
+			FLOW_LOG(INFO, "\tqueue: %u\n",
 			       enic_sop_rq_idx_to_rte_idx(ea->rq_idx));
 		if (ea->flags & FILTER_ACTION_FILTER_ID_FLAG)
-			ENICPMD_LOG(INFO, "\tfilter_id: %u\n", ea->filter_id);
+			FLOW_LOG(INFO, "\tfilter_id: %u\n", ea->filter_id);
 	}
 }
 
@@ -1371,13 +1256,13 @@ enic_dump_filter(const struct filter_v2 *filt)
 
 	switch (filt->type) {
 	case FILTER_IPV4_5TUPLE:
-		ENICPMD_LOG(INFO, "FILTER_IPV4_5TUPLE\n");
+		FLOW_LOG(INFO, "FILTER_IPV4_5TUPLE\n");
 		break;
 	case FILTER_USNIC_IP:
 	case FILTER_DPDK_1:
 		/* FIXME: this should be a loop */
 		gp = &filt->u.generic_1;
-		ENICPMD_LOG(INFO, "Filter: vlan: 0x%04x, mask: 0x%04x\n",
+		FLOW_LOG(INFO, "Filter: vlan: 0x%04x, mask: 0x%04x\n",
 		       gp->val_vlan, gp->mask_vlan);
 
 		if (gp->mask_flags & FILTER_GENERIC_1_IPV4)
@@ -1435,7 +1320,7 @@ enic_dump_filter(const struct filter_v2 *filt)
 				 ? "ipfrag(y)" : "ipfrag(n)");
 		else
 			sprintf(ipfrag, "%s ", "ipfrag(x)");
-		ENICPMD_LOG(INFO, "\tFlags: %s%s%s%s%s%s%s%s\n", ip4, ip6, udp,
+		FLOW_LOG(INFO, "\tFlags: %s%s%s%s%s%s%s%s\n", ip4, ip6, udp,
 			 tcp, tcpudp, ip4csum, l4csum, ipfrag);
 
 		for (i = 0; i < FILTER_GENERIC_1_NUM_LAYERS; i++) {
@@ -1452,7 +1337,7 @@ enic_dump_filter(const struct filter_v2 *filt)
 				bp += 2;
 			}
 			*bp = '\0';
-			ENICPMD_LOG(INFO, "\tL%u mask: %s\n", i + 2, buf);
+			FLOW_LOG(INFO, "\tL%u mask: %s\n", i + 2, buf);
 			bp = buf;
 			for (j = 0; j <= mbyte; j++) {
 				sprintf(bp, "%02x",
@@ -1460,11 +1345,11 @@ enic_dump_filter(const struct filter_v2 *filt)
 				bp += 2;
 			}
 			*bp = '\0';
-			ENICPMD_LOG(INFO, "\tL%u  val: %s\n", i + 2, buf);
+			FLOW_LOG(INFO, "\tL%u  val: %s\n", i + 2, buf);
 		}
 		break;
 	default:
-		ENICPMD_LOG(INFO, "FILTER UNKNOWN\n");
+		FLOW_LOG(INFO, "FILTER UNKNOWN\n");
 		break;
 	}
 }
@@ -1506,7 +1391,7 @@ enic_flow_parse(struct rte_eth_dev *dev,
 	const struct enic_action_cap *enic_action_cap;
 	const struct rte_flow_action *action;
 
-	ENICPMD_FUNC_TRACE();
+	FLOW_TRACE();
 
 	memset(enic_filter, 0, sizeof(*enic_filter));
 	memset(enic_action, 0, sizeof(*enic_action));
@@ -1578,7 +1463,7 @@ enic_flow_parse(struct rte_eth_dev *dev,
 				   action, "Invalid action.");
 		return -rte_errno;
 	}
-	ret = enic_action_cap->copy_fn(enic, actions, enic_action);
+	ret = enic_action_cap->copy_fn(actions, enic_action);
 	if (ret) {
 		rte_flow_error_set(error, ENOTSUP, RTE_FLOW_ERROR_TYPE_HANDLE,
 			   NULL, "Unsupported action.");
@@ -1618,9 +1503,9 @@ enic_flow_add_filter(struct enic *enic, struct filter_v2 *enic_filter,
 {
 	struct rte_flow *flow;
 	int err;
-	uint16_t entry;
+	u16 entry;
 
-	ENICPMD_FUNC_TRACE();
+	FLOW_TRACE();
 
 	flow = rte_calloc(__func__, 1, sizeof(*flow), 0);
 	if (!flow) {
@@ -1660,10 +1545,10 @@ static int
 enic_flow_del_filter(struct enic *enic, struct rte_flow *flow,
 		   struct rte_flow_error *error)
 {
-	uint16_t filter_id;
+	u16 filter_id;
 	int err;
 
-	ENICPMD_FUNC_TRACE();
+	FLOW_TRACE();
 
 	filter_id = flow->enic_filter_id;
 	err = vnic_dev_classifier(enic->vdev, CLSF_DEL, &filter_id, NULL, NULL);
@@ -1695,7 +1580,7 @@ enic_flow_validate(struct rte_eth_dev *dev, const struct rte_flow_attr *attrs,
 	struct filter_action_v2 enic_action;
 	int ret;
 
-	ENICPMD_FUNC_TRACE();
+	FLOW_TRACE();
 
 	ret = enic_flow_parse(dev, attrs, pattern, actions, error,
 			       &enic_filter, &enic_action);
@@ -1723,7 +1608,7 @@ enic_flow_create(struct rte_eth_dev *dev,
 	struct rte_flow *flow;
 	struct enic *enic = pmd_priv(dev);
 
-	ENICPMD_FUNC_TRACE();
+	FLOW_TRACE();
 
 	ret = enic_flow_parse(dev, attrs, pattern, actions, error, &enic_filter,
 			      &enic_action);
@@ -1750,7 +1635,7 @@ enic_flow_destroy(struct rte_eth_dev *dev, struct rte_flow *flow,
 {
 	struct enic *enic = pmd_priv(dev);
 
-	ENICPMD_FUNC_TRACE();
+	FLOW_TRACE();
 
 	enic_flow_del_filter(enic, flow, error);
 	LIST_REMOVE(flow, next);
@@ -1770,7 +1655,7 @@ enic_flow_flush(struct rte_eth_dev *dev, struct rte_flow_error *error)
 	struct rte_flow *flow;
 	struct enic *enic = pmd_priv(dev);
 
-	ENICPMD_FUNC_TRACE();
+	FLOW_TRACE();
 
 
 	while (!LIST_EMPTY(&enic->flows)) {

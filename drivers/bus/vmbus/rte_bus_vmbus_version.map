@@ -1,4 +1,6 @@
-DPDK_20.0 {
+/* SPDX-License-Identifier: BSD-3-Clause */
+
+DPDK_18.08 {
 	global:
 
 	rte_vmbus_chan_close;
@@ -18,7 +20,6 @@ DPDK_20.0 {
 	rte_vmbus_probe;
 	rte_vmbus_register;
 	rte_vmbus_scan;
-	rte_vmbus_set_latency;
 	rte_vmbus_sub_channel_index;
 	rte_vmbus_subchan_open;
 	rte_vmbus_unmap_device;
@@ -26,3 +27,10 @@ DPDK_20.0 {
 
 	local: *;
 };
+
+DPDK_18.11 {
+	global:
+
+	rte_vmbus_set_latency;
+
+} DPDK_18.08;

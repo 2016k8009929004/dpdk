@@ -53,7 +53,7 @@ static uint16_t nb_rxd = RTE_TEST_RX_DESC_DEFAULT;
 static uint16_t nb_txd = RTE_TEST_TX_DESC_DEFAULT;
 
 /* ethernet addresses of ports */
-static struct rte_ether_addr lsi_ports_eth_addr[RTE_MAX_ETHPORTS];
+static struct ether_addr lsi_ports_eth_addr[RTE_MAX_ETHPORTS];
 
 /* mask of enabled ports */
 static uint32_t lsi_enabled_port_mask = 0;
@@ -117,7 +117,6 @@ print_stats(void)
 
 	const char clr[] = { 27, '[', '2', 'J', '\0' };
 	const char topLeft[] = { 27, '[', '1', ';', '1', 'H','\0' };
-	int link_get_err;
 
 		/* Clear screen and move to top left */
 	printf("%s%s", clr, topLeft);
@@ -130,7 +129,7 @@ print_stats(void)
 			continue;
 
 		memset(&link, 0, sizeof(link));
-		link_get_err = rte_eth_link_get_nowait(portid, &link);
+		rte_eth_link_get_nowait(portid, &link);
 		printf("\nStatistics for port %u ------------------------------"
 			   "\nLink status: %25s"
 			   "\nLink speed: %26u"
@@ -139,11 +138,8 @@ print_stats(void)
 			   "\nPackets received: %20"PRIu64
 			   "\nPackets dropped: %21"PRIu64,
 			   portid,
-			   link_get_err < 0 ? "Link get failed" :
 			   (link.link_status ? "Link up" : "Link down"),
-			   link_get_err < 0 ? 0 :
-					(unsigned int)link.link_speed,
-			   link_get_err < 0 ? "Link get failed" :
+			   (unsigned)link.link_speed,
 			   (link.link_duplex == ETH_LINK_FULL_DUPLEX ? \
 					"full-duplex" : "half-duplex"),
 			   port_statistics[portid].tx,
@@ -169,20 +165,20 @@ print_stats(void)
 static void
 lsi_simple_forward(struct rte_mbuf *m, unsigned portid)
 {
-	struct rte_ether_hdr *eth;
+	struct ether_hdr *eth;
 	void *tmp;
 	unsigned dst_port = lsi_dst_ports[portid];
 	int sent;
 	struct rte_eth_dev_tx_buffer *buffer;
 
-	eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
+	eth = rte_pktmbuf_mtod(m, struct ether_hdr *);
 
 	/* 02:00:00:00:00:xx */
 	tmp = &eth->d_addr.addr_bytes[0];
 	*((uint64_t *)tmp) = 0x000000000002 + ((uint64_t)dst_port << 40);
 
 	/* src addr */
-	rte_ether_addr_copy(&lsi_ports_eth_addr[dst_port], &eth->s_addr);
+	ether_addr_copy(&lsi_ports_eth_addr[dst_port], &eth->s_addr);
 
 	buffer = tx_buffer[dst_port];
 	sent = rte_eth_tx_buffer(dst_port, 0, buffer, m);
@@ -288,7 +284,7 @@ lsi_main_loop(void)
 }
 
 static int
-lsi_launch_one_lcore(__rte_unused void *dummy)
+lsi_launch_one_lcore(__attribute__((unused)) void *dummy)
 {
 	lsi_main_loop();
 	return 0;
@@ -314,7 +310,10 @@ lsi_parse_portmask(const char *portmask)
 	/* parse hexadecimal string */
 	pm = strtoul(portmask, &end, 16);
 	if ((portmask[0] == '\0') || (end == NULL) || (*end != '\0'))
-		return 0;
+		return -1;
+
+	if (pm == 0)
+		return -1;
 
 	return pm;
 }
@@ -441,19 +440,13 @@ lsi_event_callback(uint16_t port_id, enum rte_eth_event_type type, void *param,
 		    void *ret_param)
 {
 	struct rte_eth_link link;
-	int ret;
 
 	RTE_SET_USED(param);
 	RTE_SET_USED(ret_param);
 
 	printf("\n\nIn registered callback...\n");
 	printf("Event type: %s\n", type == RTE_ETH_EVENT_INTR_LSC ? "LSC interrupt" : "unknown event");
-	ret = rte_eth_link_get_nowait(port_id, &link);
-	if (ret < 0) {
-		printf("Failed link get on port %d: %s\n",
-		       port_id, rte_strerror(-ret));
-		return ret;
-	}
+	rte_eth_link_get_nowait(port_id, &link);
 	if (link.link_status) {
 		printf("Port %d Link Up - speed %u Mbps - %s\n\n",
 				port_id, (unsigned)link.link_speed,
@@ -474,7 +467,6 @@ check_all_ports_link_status(uint16_t port_num, uint32_t port_mask)
 	uint8_t count, all_ports_up, print_flag = 0;
 	uint16_t portid;
 	struct rte_eth_link link;
-	int ret;
 
 	printf("\nChecking link status");
 	fflush(stdout);
@@ -484,14 +476,7 @@ check_all_ports_link_status(uint16_t port_num, uint32_t port_mask)
 			if ((port_mask & (1 << portid)) == 0)
 				continue;
 			memset(&link, 0, sizeof(link));
-			ret = rte_eth_link_get_nowait(portid, &link);
-			if (ret < 0) {
-				all_ports_up = 0;
-				if (print_flag == 1)
-					printf("Port %u link get failed: %s\n",
-						portid, rte_strerror(-ret));
-				continue;
-			}
+			rte_eth_link_get_nowait(portid, &link);
 			/* print link status if flag set */
 			if (print_flag == 1) {
 				if (link.link_status)
@@ -626,13 +611,7 @@ main(int argc, char **argv)
 		/* init port */
 		printf("Initializing port %u... ", (unsigned) portid);
 		fflush(stdout);
-
-		ret = rte_eth_dev_info_get(portid, &dev_info);
-		if (ret != 0)
-			rte_exit(EXIT_FAILURE,
-				"Error during getting device (port %u) info: %s\n",
-				portid, strerror(-ret));
-
+		rte_eth_dev_info_get(portid, &dev_info);
 		if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_MBUF_FAST_FREE)
 			local_port_conf.txmode.offloads |=
 				DEV_TX_OFFLOAD_MBUF_FAST_FREE;
@@ -656,12 +635,8 @@ main(int argc, char **argv)
 		rte_eth_dev_callback_register(portid,
 			RTE_ETH_EVENT_INTR_LSC, lsi_event_callback, NULL);
 
-		ret = rte_eth_macaddr_get(portid,
+		rte_eth_macaddr_get(portid,
 				    &lsi_ports_eth_addr[portid]);
-		if (ret < 0)
-			rte_exit(EXIT_FAILURE,
-				 "rte_eth_macaddr_get: err=%d, port=%u\n",
-				 ret, (unsigned int)portid);
 
 		/* init one RX queue */
 		fflush(stdout);
@@ -710,11 +685,7 @@ main(int argc, char **argv)
 				  ret, (unsigned) portid);
 		printf("done:\n");
 
-		ret = rte_eth_promiscuous_enable(portid);
-		if (ret != 0)
-			rte_exit(EXIT_FAILURE,
-				"rte_eth_promiscuous_enable: err=%s, port=%u\n",
-				rte_strerror(-ret), portid);
+		rte_eth_promiscuous_enable(portid);
 
 		printf("Port %u, MAC address: %02X:%02X:%02X:%02X:%02X:%02X\n\n",
 				(unsigned) portid,

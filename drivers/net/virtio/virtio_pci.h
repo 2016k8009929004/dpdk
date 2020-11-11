@@ -113,7 +113,6 @@ struct virtnet_ctl;
 
 #define VIRTIO_F_VERSION_1		32
 #define VIRTIO_F_IOMMU_PLATFORM	33
-#define VIRTIO_F_RING_PACKED		34
 
 /*
  * Some VirtIO feature bits (currently bits 28 through 31) are
@@ -128,21 +127,6 @@ struct virtnet_ctl;
  * in the same order in which they have been made available.
  */
 #define VIRTIO_F_IN_ORDER 35
-
-/*
- * This feature indicates that memory accesses by the driver and the device
- * are ordered in a way described by the platform.
- */
-#define VIRTIO_F_ORDER_PLATFORM 36
-
-/*
- * This feature indicates that the driver passes extra data (besides
- * identifying the virtqueue) in its device notifications.
- */
-#define VIRTIO_F_NOTIFICATION_DATA 38
-
-/* Device set linkspeed and duplex */
-#define VIRTIO_NET_F_SPEED_DUPLEX 63
 
 /* The Guest publishes the used index for which it expects an interrupt
  * at the end of the avail ring. Host should ignore the avail->flags field. */
@@ -253,18 +237,14 @@ struct virtio_hw {
 	uint8_t	    vlan_strip;
 	uint8_t	    use_msix;
 	uint8_t     modern;
-	uint8_t     use_vec_rx;
-	uint8_t     use_vec_tx;
+	uint8_t     use_simple_rx;
 	uint8_t     use_inorder_rx;
 	uint8_t     use_inorder_tx;
-	uint8_t     weak_barriers;
 	bool        has_tx_offload;
 	bool        has_rx_offload;
 	uint16_t    port_id;
-	uint8_t     mac_addr[RTE_ETHER_ADDR_LEN];
+	uint8_t     mac_addr[ETHER_ADDR_LEN];
 	uint32_t    notify_off_multiplier;
-	uint32_t    speed;  /* link speed in MB */
-	uint8_t     duplex;
 	uint8_t     *isr;
 	uint16_t    *notify_base;
 	struct virtio_pci_common_cfg *common_cfg;
@@ -306,24 +286,12 @@ extern struct virtio_hw_internal virtio_hw_internal[RTE_MAX_ETHPORTS];
  */
 struct virtio_net_config {
 	/* The config defining mac address (if VIRTIO_NET_F_MAC) */
-	uint8_t    mac[RTE_ETHER_ADDR_LEN];
+	uint8_t    mac[ETHER_ADDR_LEN];
 	/* See VIRTIO_NET_F_STATUS and VIRTIO_NET_S_* above */
 	uint16_t   status;
 	uint16_t   max_virtqueue_pairs;
 	uint16_t   mtu;
-	/*
-	 * speed, in units of 1Mb. All values 0 to INT_MAX are legal.
-	 * Any other value stands for unknown.
-	 */
-	uint32_t speed;
-	/*
-	 * 0x00 - half duplex
-	 * 0x01 - full duplex
-	 * Any other value stands for unknown.
-	 */
-	uint8_t duplex;
-
-} __rte_packed;
+} __attribute__((packed));
 
 /*
  * How many bits to shift physical queue address written to QUEUE_PFN.
@@ -344,12 +312,6 @@ static inline int
 vtpci_with_feature(struct virtio_hw *hw, uint64_t bit)
 {
 	return (hw->guest_features & (1ULL << bit)) != 0;
-}
-
-static inline int
-vtpci_packed_queue(struct virtio_hw *hw)
-{
-	return vtpci_with_feature(hw, VIRTIO_F_RING_PACKED);
 }
 
 /*

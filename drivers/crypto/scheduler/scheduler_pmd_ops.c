@@ -390,7 +390,8 @@ scheduler_pmd_qp_release(struct rte_cryptodev *dev, uint16_t qp_id)
 /** Setup a queue pair */
 static int
 scheduler_pmd_qp_setup(struct rte_cryptodev *dev, uint16_t qp_id,
-	const struct rte_cryptodev_qp_conf *qp_conf, int socket_id)
+	const struct rte_cryptodev_qp_conf *qp_conf, int socket_id,
+	struct rte_mempool *session_pool)
 {
 	struct scheduler_ctx *sched_ctx = dev->data->dev_private;
 	struct scheduler_qp_ctx *qp_ctx;
@@ -418,7 +419,7 @@ scheduler_pmd_qp_setup(struct rte_cryptodev *dev, uint16_t qp_id,
 		 * must be big enough for all the drivers used.
 		 */
 		ret = rte_cryptodev_queue_pair_setup(slave_id, qp_id,
-				qp_conf, socket_id);
+				qp_conf, socket_id, session_pool);
 		if (ret < 0)
 			return ret;
 	}
@@ -452,6 +453,13 @@ scheduler_pmd_qp_setup(struct rte_cryptodev *dev, uint16_t qp_id,
 	}
 
 	return 0;
+}
+
+/** Return the number of allocated queue pairs */
+static uint32_t
+scheduler_pmd_qp_count(struct rte_cryptodev *dev)
+{
+	return dev->data->nb_queue_pairs;
 }
 
 static uint32_t
@@ -527,6 +535,7 @@ static struct rte_cryptodev_ops scheduler_pmd_ops = {
 
 		.queue_pair_setup	= scheduler_pmd_qp_setup,
 		.queue_pair_release	= scheduler_pmd_qp_release,
+		.queue_pair_count	= scheduler_pmd_qp_count,
 
 		.sym_session_get_size	= scheduler_pmd_sym_session_get_size,
 		.sym_session_configure	= scheduler_pmd_sym_session_configure,

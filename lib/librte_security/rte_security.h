@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: BSD-3-Clause
- * Copyright 2017,2019 NXP
- * Copyright(c) 2017-2020 Intel Corporation.
+ * Copyright 2017 NXP.
+ * Copyright(c) 2017 Intel Corporation.
  */
 
 #ifndef _RTE_SECURITY_H_
@@ -163,23 +163,6 @@ struct rte_security_ipsec_sa_options {
 	 * * 0: Inner packet is not modified.
 	 */
 	uint32_t dec_ttl : 1;
-
-	/** Explicit Congestion Notification (ECN)
-	 *
-	 * * 1: In tunnel mode, enable outer header ECN Field copied from
-	 *      inner header in tunnel encapsulation, or inner header ECN
-	 *      field construction in decapsulation.
-	 * * 0: Inner/outer header are not modified.
-	 */
-	uint32_t ecn : 1;
-
-	/** Security statistics
-	 *
-	 * * 1: Enable per session security statistics collection for
-	 *      this SA, if supported by the driver.
-	 * * 0: Disable per session security statistics collection for this SA.
-	 */
-	uint32_t stats : 1;
 };
 
 /** IPSec security association direction */
@@ -212,10 +195,6 @@ struct rte_security_ipsec_xform {
 	/**< Tunnel parameters, NULL for transport mode */
 	uint64_t esn_soft_limit;
 	/**< ESN for which the overflow event need to be raised */
-	uint32_t replay_win_sz;
-	/**< Anti replay window size to enable sequence replay attack handling.
-	 * replay checking is disabled if the window size is 0.
-	 */
 };
 
 /**
@@ -282,37 +261,6 @@ struct rte_security_pdcp_xform {
 	uint32_t hfn;
 	/** HFN Threshold for key renegotiation */
 	uint32_t hfn_threshold;
-	/** HFN can be given as a per packet value also.
-	 * As we do not have IV in case of PDCP, and HFN is
-	 * used to generate IV. IV field can be used to get the
-	 * per packet HFN while enq/deq.
-	 * If hfn_ovrd field is set, user is expected to set the
-	 * per packet HFN in place of IV. PMDs will extract the HFN
-	 * and perform operations accordingly.
-	 */
-	uint32_t hfn_ovrd;
-};
-
-/** DOCSIS direction */
-enum rte_security_docsis_direction {
-	RTE_SECURITY_DOCSIS_UPLINK,
-	/**< Uplink
-	 * - Decryption, followed by CRC Verification
-	 */
-	RTE_SECURITY_DOCSIS_DOWNLINK,
-	/**< Downlink
-	 * - CRC Generation, followed by Encryption
-	 */
-};
-
-/**
- * DOCSIS security session configuration.
- *
- * This structure contains data required to create a DOCSIS security session.
- */
-struct rte_security_docsis_xform {
-	enum rte_security_docsis_direction direction;
-	/**< DOCSIS direction */
 };
 
 /**
@@ -329,13 +277,9 @@ enum rte_security_session_action_type {
 	/**< All security protocol processing is performed inline during
 	 * transmission
 	 */
-	RTE_SECURITY_ACTION_TYPE_LOOKASIDE_PROTOCOL,
+	RTE_SECURITY_ACTION_TYPE_LOOKASIDE_PROTOCOL
 	/**< All security protocol processing including crypto is performed
 	 * on a lookaside accelerator
-	 */
-	RTE_SECURITY_ACTION_TYPE_CPU_CRYPTO
-	/**< Similar to ACTION_TYPE_NONE but crypto processing for security
-	 * protocol is processed synchronously by a CPU.
 	 */
 };
 
@@ -347,8 +291,6 @@ enum rte_security_session_protocol {
 	/**< MACSec Protocol */
 	RTE_SECURITY_PROTOCOL_PDCP,
 	/**< PDCP Protocol */
-	RTE_SECURITY_PROTOCOL_DOCSIS,
-	/**< DOCSIS Protocol */
 };
 
 /**
@@ -364,7 +306,6 @@ struct rte_security_session_conf {
 		struct rte_security_ipsec_xform ipsec;
 		struct rte_security_macsec_xform macsec;
 		struct rte_security_pdcp_xform pdcp;
-		struct rte_security_docsis_xform docsis;
 	};
 	/**< Configuration parameters for security session */
 	struct rte_crypto_sym_xform *crypto_xform;
@@ -376,8 +317,6 @@ struct rte_security_session_conf {
 struct rte_security_session {
 	void *sess_private_data;
 	/**< Private session material */
-	uint64_t opaque_data;
-	/**< Opaque user defined data */
 };
 
 /**
@@ -405,8 +344,7 @@ rte_security_session_create(struct rte_security_ctx *instance,
  *  - On success returns 0
  *  - On failure returns a negative errno value.
  */
-__rte_experimental
-int
+int __rte_experimental
 rte_security_session_update(struct rte_security_ctx *instance,
 			    struct rte_security_session *sess,
 			    struct rte_security_session_conf *conf);
@@ -476,8 +414,7 @@ rte_security_set_pkt_metadata(struct rte_security_ctx *instance,
  *  - On success, userdata
  *  - On failure, NULL
  */
-__rte_experimental
-void *
+void * __rte_experimental
 rte_security_get_userdata(struct rte_security_ctx *instance, uint64_t md);
 
 /**
@@ -534,21 +471,11 @@ struct rte_security_macsec_stats {
 };
 
 struct rte_security_ipsec_stats {
-	uint64_t ipackets;  /**< Successfully received IPsec packets. */
-	uint64_t opackets;  /**< Successfully transmitted IPsec packets.*/
-	uint64_t ibytes;    /**< Successfully received IPsec bytes. */
-	uint64_t obytes;    /**< Successfully transmitted IPsec bytes. */
-	uint64_t ierrors;   /**< IPsec packets receive/decrypt errors. */
-	uint64_t oerrors;   /**< IPsec packets transmit/encrypt errors. */
-	uint64_t reserved1; /**< Reserved for future use. */
-	uint64_t reserved2; /**< Reserved for future use. */
+	uint64_t reserved;
+
 };
 
 struct rte_security_pdcp_stats {
-	uint64_t reserved;
-};
-
-struct rte_security_docsis_stats {
 	uint64_t reserved;
 };
 
@@ -561,7 +488,6 @@ struct rte_security_stats {
 		struct rte_security_macsec_stats macsec;
 		struct rte_security_ipsec_stats ipsec;
 		struct rte_security_pdcp_stats pdcp;
-		struct rte_security_docsis_stats docsis;
 	};
 };
 
@@ -570,16 +496,12 @@ struct rte_security_stats {
  *
  * @param	instance	security instance
  * @param	sess		security session
- * If security session is NULL then global (per security instance) statistics
- * will be retrieved, if supported. Global statistics collection is not
- * dependent on the per session statistics configuration.
  * @param	stats		statistics
  * @return
- *  - On success, return 0
- *  - On failure, a negative value
+ *  - On success return 0
+ *  - On failure errno
  */
-__rte_experimental
-int
+int __rte_experimental
 rte_security_session_stats_get(struct rte_security_ctx *instance,
 			       struct rte_security_session *sess,
 			       struct rte_security_stats *stats);
@@ -603,10 +525,6 @@ struct rte_security_capability {
 			/**< IPsec SA direction */
 			struct rte_security_ipsec_sa_options options;
 			/**< IPsec SA supported options */
-			uint32_t replay_win_sz_max;
-			/**< IPsec Anti Replay Window Size. A '0' value
-			 * indicates that Anti Replay is not supported.
-			 */
 		} ipsec;
 		/**< IPsec capability */
 		struct {
@@ -621,11 +539,6 @@ struct rte_security_capability {
 			/**< Capability flags, see RTE_SECURITY_PDCP_* */
 		} pdcp;
 		/**< PDCP capability */
-		struct {
-			enum rte_security_docsis_direction direction;
-			/**< DOCSIS direction */
-		} docsis;
-		/**< DOCSIS capability */
 	};
 
 	const struct rte_cryptodev_capabilities *crypto_capabilities;
@@ -684,9 +597,6 @@ struct rte_security_capability_idx {
 			enum rte_security_pdcp_domain domain;
 			uint32_t capa_flags;
 		} pdcp;
-		struct {
-			enum rte_security_docsis_direction direction;
-		} docsis;
 	};
 };
 

@@ -6,7 +6,7 @@
 #ifndef __CHELSIO_COMMON_H
 #define __CHELSIO_COMMON_H
 
-#include "../cxgbe_compat.h"
+#include "cxgbe_compat.h"
 #include "t4_hw.h"
 #include "t4vf_hw.h"
 #include "t4_chip_type.h"
@@ -133,7 +133,6 @@ struct tp_params {
 	unsigned short tx_modq[NCHAN];  /* channel to modulation queue map */
 
 	u32 vlan_pri_map;               /* cached TP_VLAN_PRI_MAP */
-	u32 filter_mask;
 	u32 ingress_config;             /* cached TP_INGRESS_CONFIG */
 
 	/* cached TP_OUT_CONFIG compressed error vector
@@ -159,7 +158,6 @@ struct tp_params {
 	int protocol_shift;
 	int ethertype_shift;
 	int macmatch_shift;
-	int tos_shift;
 
 	u64 hash_filter_mask;
 };
@@ -274,8 +272,6 @@ struct adapter_params {
 	bool ulptx_memwrite_dsgl;          /* use of T5 DSGL allowed */
 	u8 fw_caps_support;		  /* 32-bit Port Capabilities */
 	u8 filter2_wr_support;            /* FW support for FILTER2_WR */
-	u32 viid_smt_extn_support:1;	  /* FW returns vin and smt index */
-	u32 max_tx_coalesce_num; /* Max # of Tx packets that can be coalesced */
 };
 
 /* Firmware Port Capabilities types.
@@ -384,11 +380,10 @@ int t4_set_params(struct adapter *adap, unsigned int mbox, unsigned int pf,
 int t4_alloc_vi_func(struct adapter *adap, unsigned int mbox,
 		     unsigned int port, unsigned int pf, unsigned int vf,
 		     unsigned int nmac, u8 *mac, unsigned int *rss_size,
-		     unsigned int portfunc, unsigned int idstype,
-		     u8 *vivld, u8 *vin);
+		     unsigned int portfunc, unsigned int idstype);
 int t4_alloc_vi(struct adapter *adap, unsigned int mbox, unsigned int port,
 		unsigned int pf, unsigned int vf, unsigned int nmac, u8 *mac,
-		unsigned int *rss_size, u8 *vivild, u8 *vin);
+		unsigned int *rss_size);
 int t4_free_vi(struct adapter *adap, unsigned int mbox,
 	       unsigned int pf, unsigned int vf,
 	       unsigned int viid);
@@ -527,7 +522,7 @@ void t4_read_rss_key(struct adapter *adap, u32 *key);
 
 enum t4_bar2_qtype { T4_BAR2_QTYPE_EGRESS, T4_BAR2_QTYPE_INGRESS };
 int t4_bar2_sge_qregs(struct adapter *adapter, unsigned int qid,
-		      enum t4_bar2_qtype qtype, u64 *pbar2_qoffset,
+		      unsigned int qtype, u64 *pbar2_qoffset,
 		      unsigned int *pbar2_qid);
 
 int t4_init_sge_params(struct adapter *adapter);

@@ -17,8 +17,6 @@ extern "C" {
 
 #include <rte_bus.h>
 #include <rte_pci.h>
-#include <rte_interrupts.h>
-#include <rte_spinlock.h>
 
 /** Name of Intel FPGA Bus */
 #define IFPGA_BUS_NAME ifpga
@@ -37,7 +35,7 @@ TAILQ_HEAD(ifpga_afu_drv_list, rte_afu_driver);
 struct rte_afu_uuid {
 	uint64_t uuid_low;
 	uint64_t uuid_high;
-} __rte_packed;
+} __attribute__ ((packed));
 
 #define IFPGA_BUS_DEV_PORT_MAX 4
 
@@ -48,7 +46,7 @@ struct rte_afu_uuid {
 struct rte_afu_id {
 	struct rte_afu_uuid uuid;
 	int      port; /**< port number */
-} __rte_packed;
+} __attribute__ ((packed));
 
 /**
  * A structure PR (Partial Reconfiguration) configuration AFU driver.
@@ -62,11 +60,6 @@ struct rte_afu_pr_conf {
 
 #define AFU_PRI_STR_SIZE (PCI_PRI_STR_SIZE + 8)
 
-struct rte_afu_shared {
-	rte_spinlock_t lock;
-	void *data;
-};
-
 /**
  * A structure describing a AFU device.
  */
@@ -78,11 +71,10 @@ struct rte_afu_device {
 	uint32_t num_region;   /**< number of regions found */
 	struct rte_mem_resource mem_resource[PCI_MAX_RESOURCE];
 						/**< AFU Memory Resource */
-	struct rte_afu_shared shared;
 	struct rte_intr_handle intr_handle;     /**< Interrupt handle */
 	struct rte_afu_driver *driver;          /**< Associated driver */
 	char path[IFPGA_BUS_BITSTREAM_PATH_MAX_LEN];
-} __rte_packed;
+} __attribute__ ((packed));
 
 /**
  * @internal
@@ -119,15 +111,6 @@ rte_ifpga_device_name(const struct rte_afu_device *afu)
 		return afu->device.name;
 	return NULL;
 }
-
-/**
- * Find AFU by AFU name.
- *
- * @param name
- *   A pointer to AFU name string.
- */
-struct rte_afu_device *
-rte_ifpga_find_afu_by_name(const char *name);
 
 /**
  * Register a ifpga afu device driver.

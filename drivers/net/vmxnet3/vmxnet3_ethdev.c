@@ -56,8 +56,7 @@
 	 DEV_RX_OFFLOAD_UDP_CKSUM |	\
 	 DEV_RX_OFFLOAD_TCP_CKSUM |	\
 	 DEV_RX_OFFLOAD_TCP_LRO |	\
-	 DEV_RX_OFFLOAD_JUMBO_FRAME |   \
-	 DEV_RX_OFFLOAD_RSS_HASH)
+	 DEV_RX_OFFLOAD_JUMBO_FRAME)
 
 static int eth_vmxnet3_dev_init(struct rte_eth_dev *eth_dev);
 static int eth_vmxnet3_dev_uninit(struct rte_eth_dev *eth_dev);
@@ -66,10 +65,10 @@ static int vmxnet3_dev_start(struct rte_eth_dev *dev);
 static void vmxnet3_dev_stop(struct rte_eth_dev *dev);
 static void vmxnet3_dev_close(struct rte_eth_dev *dev);
 static void vmxnet3_dev_set_rxmode(struct vmxnet3_hw *hw, uint32_t feature, int set);
-static int vmxnet3_dev_promiscuous_enable(struct rte_eth_dev *dev);
-static int vmxnet3_dev_promiscuous_disable(struct rte_eth_dev *dev);
-static int vmxnet3_dev_allmulticast_enable(struct rte_eth_dev *dev);
-static int vmxnet3_dev_allmulticast_disable(struct rte_eth_dev *dev);
+static void vmxnet3_dev_promiscuous_enable(struct rte_eth_dev *dev);
+static void vmxnet3_dev_promiscuous_disable(struct rte_eth_dev *dev);
+static void vmxnet3_dev_allmulticast_enable(struct rte_eth_dev *dev);
+static void vmxnet3_dev_allmulticast_disable(struct rte_eth_dev *dev);
 static int __vmxnet3_dev_link_update(struct rte_eth_dev *dev,
 				     int wait_to_complete);
 static int vmxnet3_dev_link_update(struct rte_eth_dev *dev,
@@ -77,23 +76,25 @@ static int vmxnet3_dev_link_update(struct rte_eth_dev *dev,
 static void vmxnet3_hw_stats_save(struct vmxnet3_hw *hw);
 static int vmxnet3_dev_stats_get(struct rte_eth_dev *dev,
 				  struct rte_eth_stats *stats);
-static int vmxnet3_dev_stats_reset(struct rte_eth_dev *dev);
+static void vmxnet3_dev_stats_reset(struct rte_eth_dev *dev);
 static int vmxnet3_dev_xstats_get_names(struct rte_eth_dev *dev,
 					struct rte_eth_xstat_name *xstats,
 					unsigned int n);
 static int vmxnet3_dev_xstats_get(struct rte_eth_dev *dev,
 				  struct rte_eth_xstat *xstats, unsigned int n);
-static int vmxnet3_dev_info_get(struct rte_eth_dev *dev,
-				struct rte_eth_dev_info *dev_info);
+static void vmxnet3_dev_info_get(struct rte_eth_dev *dev,
+				 struct rte_eth_dev_info *dev_info);
 static const uint32_t *
 vmxnet3_dev_supported_ptypes_get(struct rte_eth_dev *dev);
-static int vmxnet3_dev_mtu_set(struct rte_eth_dev *dev, uint16_t mtu);
 static int vmxnet3_dev_vlan_filter_set(struct rte_eth_dev *dev,
 				       uint16_t vid, int on);
 static int vmxnet3_dev_vlan_offload_set(struct rte_eth_dev *dev, int mask);
 static int vmxnet3_mac_addr_set(struct rte_eth_dev *dev,
-				 struct rte_ether_addr *mac_addr);
+				 struct ether_addr *mac_addr);
 static void vmxnet3_interrupt_handler(void *param);
+
+int vmxnet3_logtype_init;
+int vmxnet3_logtype_driver;
 
 /*
  * The set of PCI devices this driver supports
@@ -122,7 +123,6 @@ static const struct eth_dev_ops vmxnet3_eth_dev_ops = {
 	.mac_addr_set         = vmxnet3_mac_addr_set,
 	.dev_infos_get        = vmxnet3_dev_info_get,
 	.dev_supported_ptypes_get = vmxnet3_dev_supported_ptypes_get,
-	.mtu_set              = vmxnet3_dev_mtu_set,
 	.vlan_filter_set      = vmxnet3_dev_vlan_filter_set,
 	.vlan_offload_set     = vmxnet3_dev_vlan_offload_set,
 	.rx_queue_setup       = vmxnet3_dev_rx_queue_setup,
@@ -265,11 +265,7 @@ eth_vmxnet3_dev_init(struct rte_eth_dev *eth_dev)
 	ver = VMXNET3_READ_BAR1_REG(hw, VMXNET3_REG_VRRS);
 	PMD_INIT_LOG(DEBUG, "Hardware version : %d", ver);
 
-	if (ver & (1 << VMXNET3_REV_4)) {
-		VMXNET3_WRITE_BAR1_REG(hw, VMXNET3_REG_VRRS,
-				       1 << VMXNET3_REV_4);
-		hw->version = VMXNET3_REV_4 + 1;
-	} else if (ver & (1 << VMXNET3_REV_3)) {
+	if (ver & (1 << VMXNET3_REV_3)) {
 		VMXNET3_WRITE_BAR1_REG(hw, VMXNET3_REG_VRRS,
 				       1 << VMXNET3_REV_3);
 		hw->version = VMXNET3_REV_3 + 1;
@@ -305,16 +301,16 @@ eth_vmxnet3_dev_init(struct rte_eth_dev *eth_dev)
 	memcpy(hw->perm_addr + 4, &mac_hi, 2);
 
 	/* Allocate memory for storing MAC addresses */
-	eth_dev->data->mac_addrs = rte_zmalloc("vmxnet3", RTE_ETHER_ADDR_LEN *
+	eth_dev->data->mac_addrs = rte_zmalloc("vmxnet3", ETHER_ADDR_LEN *
 					       VMXNET3_MAX_MAC_ADDRS, 0);
 	if (eth_dev->data->mac_addrs == NULL) {
 		PMD_INIT_LOG(ERR,
 			     "Failed to allocate %d bytes needed to store MAC addresses",
-			     RTE_ETHER_ADDR_LEN * VMXNET3_MAX_MAC_ADDRS);
+			     ETHER_ADDR_LEN * VMXNET3_MAX_MAC_ADDRS);
 		return -ENOMEM;
 	}
 	/* Copy the permanent MAC address */
-	rte_ether_addr_copy((struct rte_ether_addr *)hw->perm_addr,
+	ether_addr_copy((struct ether_addr *) hw->perm_addr,
 			&eth_dev->data->mac_addrs[0]);
 
 	PMD_INIT_LOG(DEBUG, "MAC Address : %02x:%02x:%02x:%02x:%02x:%02x",
@@ -406,9 +402,6 @@ vmxnet3_dev_configure(struct rte_eth_dev *dev)
 	size_t size;
 
 	PMD_INIT_FUNC_TRACE();
-
-	if (dev->data->dev_conf.rxmode.mq_mode & ETH_MQ_RX_RSS_FLAG)
-		dev->data->dev_conf.rxmode.offloads |= DEV_RX_OFFLOAD_RSS_HASH;
 
 	if (dev->data->nb_tx_queues > VMXNET3_MAX_TX_QUEUES ||
 	    dev->data->nb_rx_queues > VMXNET3_MAX_RX_QUEUES) {
@@ -770,16 +763,6 @@ vmxnet3_dev_start(struct rte_eth_dev *dev)
 		PMD_INIT_LOG(DEBUG, "Failed to setup memory region\n");
 	}
 
-	if (VMXNET3_VERSION_GE_4(hw) &&
-	    dev->data->dev_conf.rxmode.mq_mode == ETH_MQ_RX_RSS) {
-		/* Check for additional RSS  */
-		ret = vmxnet3_v4_rss_configure(dev);
-		if (ret != VMXNET3_SUCCESS) {
-			PMD_INIT_LOG(ERR, "Failed to configure v4 RSS");
-			return ret;
-		}
-	}
-
 	/* Disable interrupts */
 	vmxnet3_disable_intr(hw);
 
@@ -1129,7 +1112,7 @@ vmxnet3_dev_stats_get(struct rte_eth_dev *dev, struct rte_eth_stats *stats)
 	return 0;
 }
 
-static int
+static void
 vmxnet3_dev_stats_reset(struct rte_eth_dev *dev)
 {
 	unsigned int i;
@@ -1151,30 +1134,20 @@ vmxnet3_dev_stats_reset(struct rte_eth_dev *dev)
 		memcpy(&hw->snapshot_rx_stats[i], &rxStats,
 			sizeof(hw->snapshot_rx_stats[0]));
 	}
-
-	return 0;
 }
 
-static int
-vmxnet3_dev_info_get(struct rte_eth_dev *dev,
+static void
+vmxnet3_dev_info_get(struct rte_eth_dev *dev __rte_unused,
 		     struct rte_eth_dev_info *dev_info)
 {
-	struct vmxnet3_hw *hw = dev->data->dev_private;
-
 	dev_info->max_rx_queues = VMXNET3_MAX_RX_QUEUES;
 	dev_info->max_tx_queues = VMXNET3_MAX_TX_QUEUES;
 	dev_info->min_rx_bufsize = 1518 + RTE_PKTMBUF_HEADROOM;
 	dev_info->max_rx_pktlen = 16384; /* includes CRC, cf MAXFRS register */
-	dev_info->min_mtu = VMXNET3_MIN_MTU;
-	dev_info->max_mtu = VMXNET3_MAX_MTU;
 	dev_info->speed_capa = ETH_LINK_SPEED_10G;
 	dev_info->max_mac_addrs = VMXNET3_MAX_MAC_ADDRS;
 
 	dev_info->flow_type_rss_offloads = VMXNET3_RSS_OFFLOAD_ALL;
-
-	if (VMXNET3_VERSION_GE_4(hw)) {
-		dev_info->flow_type_rss_offloads |= VMXNET3_V4_RSS_MASK;
-	}
 
 	dev_info->rx_desc_lim = (struct rte_eth_desc_lim) {
 		.nb_max = VMXNET3_RX_RING_MAX_SIZE,
@@ -1194,8 +1167,6 @@ vmxnet3_dev_info_get(struct rte_eth_dev *dev,
 	dev_info->rx_queue_offload_capa = 0;
 	dev_info->tx_offload_capa = VMXNET3_TX_OFFLOAD_CAP;
 	dev_info->tx_queue_offload_capa = 0;
-
-	return 0;
 }
 
 static const uint32_t *
@@ -1213,23 +1184,11 @@ vmxnet3_dev_supported_ptypes_get(struct rte_eth_dev *dev)
 }
 
 static int
-vmxnet3_dev_mtu_set(struct rte_eth_dev *dev, __rte_unused uint16_t mtu)
-{
-	if (dev->data->dev_started) {
-		PMD_DRV_LOG(ERR, "Port %d must be stopped to configure MTU",
-			    dev->data->port_id);
-		return -EBUSY;
-	}
-
-	return 0;
-}
-
-static int
-vmxnet3_mac_addr_set(struct rte_eth_dev *dev, struct rte_ether_addr *mac_addr)
+vmxnet3_mac_addr_set(struct rte_eth_dev *dev, struct ether_addr *mac_addr)
 {
 	struct vmxnet3_hw *hw = dev->data->dev_private;
 
-	rte_ether_addr_copy(mac_addr, (struct rte_ether_addr *)(hw->perm_addr));
+	ether_addr_copy(mac_addr, (struct ether_addr *)(hw->perm_addr));
 	vmxnet3_write_mac(hw, mac_addr->addr_bytes);
 	return 0;
 }
@@ -1282,7 +1241,7 @@ vmxnet3_dev_set_rxmode(struct vmxnet3_hw *hw, uint32_t feature, int set)
 }
 
 /* Promiscuous supported only if Vmxnet3_DriverShared is initialized in adapter */
-static int
+static void
 vmxnet3_dev_promiscuous_enable(struct rte_eth_dev *dev)
 {
 	struct vmxnet3_hw *hw = dev->data->dev_private;
@@ -1293,12 +1252,10 @@ vmxnet3_dev_promiscuous_enable(struct rte_eth_dev *dev)
 
 	VMXNET3_WRITE_BAR1_REG(hw, VMXNET3_REG_CMD,
 			       VMXNET3_CMD_UPDATE_VLAN_FILTERS);
-
-	return 0;
 }
 
 /* Promiscuous supported only if Vmxnet3_DriverShared is initialized in adapter */
-static int
+static void
 vmxnet3_dev_promiscuous_disable(struct rte_eth_dev *dev)
 {
 	struct vmxnet3_hw *hw = dev->data->dev_private;
@@ -1312,30 +1269,24 @@ vmxnet3_dev_promiscuous_disable(struct rte_eth_dev *dev)
 	vmxnet3_dev_set_rxmode(hw, VMXNET3_RXM_PROMISC, 0);
 	VMXNET3_WRITE_BAR1_REG(hw, VMXNET3_REG_CMD,
 			       VMXNET3_CMD_UPDATE_VLAN_FILTERS);
-
-	return 0;
 }
 
 /* Allmulticast supported only if Vmxnet3_DriverShared is initialized in adapter */
-static int
+static void
 vmxnet3_dev_allmulticast_enable(struct rte_eth_dev *dev)
 {
 	struct vmxnet3_hw *hw = dev->data->dev_private;
 
 	vmxnet3_dev_set_rxmode(hw, VMXNET3_RXM_ALL_MULTI, 1);
-
-	return 0;
 }
 
 /* Allmulticast supported only if Vmxnet3_DriverShared is initialized in adapter */
-static int
+static void
 vmxnet3_dev_allmulticast_disable(struct rte_eth_dev *dev)
 {
 	struct vmxnet3_hw *hw = dev->data->dev_private;
 
 	vmxnet3_dev_set_rxmode(hw, VMXNET3_RXM_ALL_MULTI, 0);
-
-	return 0;
 }
 
 /* Enable/disable filter on vlan */
@@ -1454,12 +1405,20 @@ vmxnet3_interrupt_handler(void *param)
 
 	vmxnet3_process_events(dev);
 
-	if (rte_intr_ack(&pci_dev->intr_handle) < 0)
+	if (rte_intr_enable(&pci_dev->intr_handle) < 0)
 		PMD_DRV_LOG(ERR, "interrupt enable failed");
 }
 
 RTE_PMD_REGISTER_PCI(net_vmxnet3, rte_vmxnet3_pmd);
 RTE_PMD_REGISTER_PCI_TABLE(net_vmxnet3, pci_id_vmxnet3_map);
 RTE_PMD_REGISTER_KMOD_DEP(net_vmxnet3, "* igb_uio | uio_pci_generic | vfio-pci");
-RTE_LOG_REGISTER(vmxnet3_logtype_init, pmd.net.vmxnet3.init, NOTICE);
-RTE_LOG_REGISTER(vmxnet3_logtype_driver, pmd.net.vmxnet3.driver, NOTICE);
+
+RTE_INIT(vmxnet3_init_log)
+{
+	vmxnet3_logtype_init = rte_log_register("pmd.net.vmxnet3.init");
+	if (vmxnet3_logtype_init >= 0)
+		rte_log_set_level(vmxnet3_logtype_init, RTE_LOG_NOTICE);
+	vmxnet3_logtype_driver = rte_log_register("pmd.net.vmxnet3.driver");
+	if (vmxnet3_logtype_driver >= 0)
+		rte_log_set_level(vmxnet3_logtype_driver, RTE_LOG_NOTICE);
+}

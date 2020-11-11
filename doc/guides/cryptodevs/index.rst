@@ -19,10 +19,8 @@ Crypto Device Drivers
     dpaa_sec
     kasumi
     octeontx
-    octeontx2
     openssl
     mvsam
-    nitrox
     null
     scheduler
     snow3g

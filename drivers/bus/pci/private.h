@@ -33,17 +33,6 @@ void
 pci_name_set(struct rte_pci_device *dev);
 
 /**
- * Validate whether a device with given PCI address should be ignored or not.
- *
- * @param pci_addr
- *	PCI address of device to be validated
- * @return
- *	true: if device is to be ignored,
- *	false: if device is to be scanned,
- */
-bool rte_pci_ignore_device(const struct rte_pci_addr *pci_addr);
-
-/**
  * Add a PCI device to the PCI Bus (append to PCI Device list). This function
  * also updates the bus references of the PCI Device (and the generic device
  * object embedded within.
@@ -172,17 +161,6 @@ int pci_uio_map_resource_by_index(struct rte_pci_device *dev, int res_idx,
 int
 rte_pci_match(const struct rte_pci_driver *pci_drv,
 	      const struct rte_pci_device *pci_dev);
-
-/**
- * OS specific callbacks for rte_pci_get_iommu_class
- *
- */
-bool
-pci_device_iommu_support_va(const struct rte_pci_device *dev);
-
-enum rte_iova_mode
-pci_device_iova_mode(const struct rte_pci_driver *pci_drv,
-		     const struct rte_pci_device *pci_dev);
 
 /**
  * Get iommu class of PCI devices on the bus.

@@ -91,10 +91,7 @@ The application requires a number of command line options:
 
 .. code-block:: console
 
-    ./build/l2fwd [EAL options] -- -p PORTMASK
-                                   [-q NQ]
-                                   --[no-]mac-updating
-                                   [--portmap="(port, port)[,(port, port)]"]
+    ./build/l2fwd [EAL options] -- -p PORTMASK [-q NQ] --[no-]mac-updating
 
 where,
 
@@ -102,24 +99,14 @@ where,
 
 *   q NQ: A number of queues (=ports) per lcore (default is 1)
 
-*   --[no-]mac-updating: Enable or disable MAC addresses updating (enabled by default)
+*   --[no-]mac-updating: Enable or disable MAC addresses updating (enabled by default).
 
-*   --portmap="(port,port)[,(port,port)]": Determines forwarding ports mapping.
-
-To run the application in linux environment with 4 lcores, 16 ports and 8 RX queues per lcore and MAC address
+To run the application in linuxapp environment with 4 lcores, 16 ports and 8 RX queues per lcore and MAC address
 updating enabled, issue the command:
 
 .. code-block:: console
 
     $ ./build/l2fwd -l 0-3 -n 4 -- -q 8 -p ffff
-
-To run the application in linux environment with 4 lcores, 4 ports, 8 RX queues
-per lcore, to forward RX traffic of ports 0 & 1 on ports 2 & 3 respectively and
-vice versa, issue the command:
-
-.. code-block:: console
-
-    $ ./build/l2fwd -l 0-3 -n 4 -- -q 8 -p f --portmap="(0,2)(1,3)"
 
 Refer to the *DPDK Getting Started Guide* for general information on running applications
 and the Environment Abstraction Layer (EAL) options.
@@ -359,13 +346,13 @@ Naturally, the number of ports in the portmask must be even, otherwise, the appl
     static void
     l2fwd_simple_forward(struct rte_mbuf *m, unsigned portid)
     {
-        struct rte_ether_hdr *eth;
+        struct ether_hdr *eth;
         void *tmp;
         unsigned dst_port;
 
         dst_port = l2fwd_dst_ports[portid];
 
-        eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
+        eth = rte_pktmbuf_mtod(m, struct ether_hdr *);
 
         /* 02:00:00:00:00:xx */
 
@@ -375,7 +362,7 @@ Naturally, the number of ports in the portmask must be even, otherwise, the appl
 
         /* src addr */
 
-        rte_ether_addr_copy(&l2fwd_ports_eth_addr[dst_port], &eth->s_addr);
+        ether_addr_copy(&l2fwd_ports_eth_addr[dst_port], &eth->s_addr);
 
         l2fwd_send_packet(m, (uint8_t) dst_port);
     }

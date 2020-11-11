@@ -3,6 +3,7 @@
 
 
 # Add our sources files to the list
+allow_experimental_apis = true
 qat_sources += files('qat_comp_pmd.c',
 		     'qat_comp.c')
 qat_includes += include_directories('.')

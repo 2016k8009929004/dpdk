@@ -12,6 +12,8 @@ LDLIBS += -lrte_eal -lrte_ring
 
 EXPORT_MAP := rte_hash_version.map
 
+LIBABIVER := 2
+
 # all source are stored in SRCS-y
 SRCS-$(CONFIG_RTE_LIBRTE_HASH) := rte_cuckoo_hash.c
 SRCS-$(CONFIG_RTE_LIBRTE_HASH) += rte_fbk_hash.c

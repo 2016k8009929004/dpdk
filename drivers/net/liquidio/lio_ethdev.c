@@ -2,7 +2,6 @@
  * Copyright(c) 2017 Cavium, Inc
  */
 
-#include <rte_string_fns.h>
 #include <rte_ethdev_driver.h>
 #include <rte_ethdev_pci.h>
 #include <rte_cycles.h>
@@ -14,6 +13,9 @@
 #include "lio_23xx_vf.h"
 #include "lio_ethdev.h"
 #include "lio_rxtx.h"
+
+int lio_logtype_init;
+int lio_logtype_driver;
 
 /* Default RSS key in use */
 static uint8_t lio_rss_key[40] = {
@@ -240,18 +242,17 @@ lio_dev_xstats_get_names(struct rte_eth_dev *eth_dev,
 }
 
 /* Reset hw stats for the port */
-static int
+static void
 lio_dev_xstats_reset(struct rte_eth_dev *eth_dev)
 {
 	struct lio_device *lio_dev = LIO_DEV(eth_dev);
 	struct lio_dev_ctrl_cmd ctrl_cmd;
 	struct lio_ctrl_pkt ctrl_pkt;
-	int ret;
 
 	if (!lio_dev->intf_open) {
 		lio_dev_err(lio_dev, "Port %d down\n",
 			    lio_dev->port_id);
-		return -EINVAL;
+		return;
 	}
 
 	/* flush added to prevent cmd failure
@@ -268,21 +269,19 @@ lio_dev_xstats_reset(struct rte_eth_dev *eth_dev)
 	ctrl_pkt.ncmd.s.cmd = LIO_CMD_CLEAR_STATS;
 	ctrl_pkt.ctrl_cmd = &ctrl_cmd;
 
-	ret = lio_send_ctrl_pkt(lio_dev, &ctrl_pkt);
-	if (ret != 0) {
+	if (lio_send_ctrl_pkt(lio_dev, &ctrl_pkt)) {
 		lio_dev_err(lio_dev, "Failed to send clear stats command\n");
-		return ret;
+		return;
 	}
 
-	ret = lio_wait_for_ctrl_cmd(lio_dev, &ctrl_cmd);
-	if (ret != 0) {
+	if (lio_wait_for_ctrl_cmd(lio_dev, &ctrl_cmd)) {
 		lio_dev_err(lio_dev, "Clear stats command timed out\n");
-		return ret;
+		return;
 	}
 
 	/* clear stored per queue stats */
-	RTE_FUNC_PTR_OR_ERR_RET(*eth_dev->dev_ops->stats_reset, 0);
-	return (*eth_dev->dev_ops->stats_reset)(eth_dev);
+	RTE_FUNC_PTR_OR_RET(*eth_dev->dev_ops->stats_reset);
+	(*eth_dev->dev_ops->stats_reset)(eth_dev);
 }
 
 /* Retrieve the device statistics (# packets in/out, # bytes in/out, etc */
@@ -338,7 +337,7 @@ lio_dev_stats_get(struct rte_eth_dev *eth_dev,
 	return 0;
 }
 
-static int
+static void
 lio_dev_stats_reset(struct rte_eth_dev *eth_dev)
 {
 	struct lio_device *lio_dev = LIO_DEV(eth_dev);
@@ -365,11 +364,9 @@ lio_dev_stats_reset(struct rte_eth_dev *eth_dev)
 			memset(oq_stats, 0, sizeof(struct lio_droq_stats));
 		}
 	}
-
-	return 0;
 }
 
-static int
+static void
 lio_dev_info_get(struct rte_eth_dev *eth_dev,
 		 struct rte_eth_dev_info *devinfo)
 {
@@ -395,7 +392,6 @@ lio_dev_info_get(struct rte_eth_dev *eth_dev,
 		devinfo->speed_capa = ETH_LINK_SPEED_10G;
 		lio_dev_err(lio_dev,
 			    "Unknown CN23XX subsystem device id. Setting 10G as default link speed.\n");
-		return -EINVAL;
 	}
 
 	devinfo->max_rx_queues = lio_dev->max_rx_queues;
@@ -409,8 +405,7 @@ lio_dev_info_get(struct rte_eth_dev *eth_dev,
 	devinfo->rx_offload_capa = (DEV_RX_OFFLOAD_IPV4_CKSUM		|
 				    DEV_RX_OFFLOAD_UDP_CKSUM		|
 				    DEV_RX_OFFLOAD_TCP_CKSUM		|
-				    DEV_RX_OFFLOAD_VLAN_STRIP		|
-				    DEV_RX_OFFLOAD_RSS_HASH);
+				    DEV_RX_OFFLOAD_VLAN_STRIP);
 	devinfo->tx_offload_capa = (DEV_TX_OFFLOAD_IPV4_CKSUM		|
 				    DEV_TX_OFFLOAD_UDP_CKSUM		|
 				    DEV_TX_OFFLOAD_TCP_CKSUM		|
@@ -427,7 +422,6 @@ lio_dev_info_get(struct rte_eth_dev *eth_dev,
 					   ETH_RSS_NONFRAG_IPV6_TCP	|
 					   ETH_RSS_IPV6_EX		|
 					   ETH_RSS_IPV6_TCP_EX);
-	return 0;
 }
 
 static int
@@ -435,7 +429,7 @@ lio_dev_mtu_set(struct rte_eth_dev *eth_dev, uint16_t mtu)
 {
 	struct lio_device *lio_dev = LIO_DEV(eth_dev);
 	uint16_t pf_mtu = lio_dev->linfo.link.s.mtu;
-	uint32_t frame_len = mtu + RTE_ETHER_HDR_LEN + RTE_ETHER_CRC_LEN;
+	uint32_t frame_len = mtu + ETHER_HDR_LEN + ETHER_CRC_LEN;
 	struct lio_dev_ctrl_cmd ctrl_cmd;
 	struct lio_ctrl_pkt ctrl_pkt;
 
@@ -450,9 +444,9 @@ lio_dev_mtu_set(struct rte_eth_dev *eth_dev, uint16_t mtu)
 	/* check if VF MTU is within allowed range.
 	 * New value should not exceed PF MTU.
 	 */
-	if (mtu < RTE_ETHER_MIN_MTU || mtu > pf_mtu) {
+	if ((mtu < ETHER_MIN_MTU) || (mtu > pf_mtu)) {
 		lio_dev_err(lio_dev, "VF MTU should be >= %d and <= %d\n",
-			    RTE_ETHER_MIN_MTU, pf_mtu);
+			    ETHER_MIN_MTU, pf_mtu);
 		return -EINVAL;
 	}
 
@@ -481,7 +475,7 @@ lio_dev_mtu_set(struct rte_eth_dev *eth_dev, uint16_t mtu)
 		return -1;
 	}
 
-	if (frame_len > RTE_ETHER_MAX_LEN)
+	if (frame_len > ETHER_MAX_LEN)
 		eth_dev->data->dev_conf.rxmode.offloads |=
 			DEV_RX_OFFLOAD_JUMBO_FRAME;
 	else
@@ -964,12 +958,8 @@ lio_dev_link_update(struct rte_eth_dev *eth_dev,
 /**
  * \brief Net device enable, disable allmulticast
  * @param eth_dev Pointer to the structure rte_eth_dev
- *
- * @return
- *  On success return 0
- *  On failure return negative errno
  */
-static int
+static void
 lio_change_dev_flag(struct rte_eth_dev *eth_dev)
 {
 	struct lio_device *lio_dev = LIO_DEV(eth_dev);
@@ -994,18 +984,14 @@ lio_change_dev_flag(struct rte_eth_dev *eth_dev)
 
 	if (lio_send_ctrl_pkt(lio_dev, &ctrl_pkt)) {
 		lio_dev_err(lio_dev, "Failed to send change flag message\n");
-		return -EAGAIN;
+		return;
 	}
 
-	if (lio_wait_for_ctrl_cmd(lio_dev, &ctrl_cmd)) {
+	if (lio_wait_for_ctrl_cmd(lio_dev, &ctrl_cmd))
 		lio_dev_err(lio_dev, "Change dev flag command timed out\n");
-		return -ETIMEDOUT;
-	}
-
-	return 0;
 }
 
-static int
+static void
 lio_dev_promiscuous_enable(struct rte_eth_dev *eth_dev)
 {
 	struct lio_device *lio_dev = LIO_DEV(eth_dev);
@@ -1013,20 +999,20 @@ lio_dev_promiscuous_enable(struct rte_eth_dev *eth_dev)
 	if (strcmp(lio_dev->firmware_version, LIO_VF_TRUST_MIN_VERSION) < 0) {
 		lio_dev_err(lio_dev, "Require firmware version >= %s\n",
 			    LIO_VF_TRUST_MIN_VERSION);
-		return -EAGAIN;
+		return;
 	}
 
 	if (!lio_dev->intf_open) {
 		lio_dev_err(lio_dev, "Port %d down, can't enable promiscuous\n",
 			    lio_dev->port_id);
-		return -EAGAIN;
+		return;
 	}
 
 	lio_dev->ifflags |= LIO_IFFLAG_PROMISC;
-	return lio_change_dev_flag(eth_dev);
+	lio_change_dev_flag(eth_dev);
 }
 
-static int
+static void
 lio_dev_promiscuous_disable(struct rte_eth_dev *eth_dev)
 {
 	struct lio_device *lio_dev = LIO_DEV(eth_dev);
@@ -1034,20 +1020,20 @@ lio_dev_promiscuous_disable(struct rte_eth_dev *eth_dev)
 	if (strcmp(lio_dev->firmware_version, LIO_VF_TRUST_MIN_VERSION) < 0) {
 		lio_dev_err(lio_dev, "Require firmware version >= %s\n",
 			    LIO_VF_TRUST_MIN_VERSION);
-		return -EAGAIN;
+		return;
 	}
 
 	if (!lio_dev->intf_open) {
 		lio_dev_err(lio_dev, "Port %d down, can't disable promiscuous\n",
 			    lio_dev->port_id);
-		return -EAGAIN;
+		return;
 	}
 
 	lio_dev->ifflags &= ~LIO_IFFLAG_PROMISC;
-	return lio_change_dev_flag(eth_dev);
+	lio_change_dev_flag(eth_dev);
 }
 
-static int
+static void
 lio_dev_allmulticast_enable(struct rte_eth_dev *eth_dev)
 {
 	struct lio_device *lio_dev = LIO_DEV(eth_dev);
@@ -1055,14 +1041,14 @@ lio_dev_allmulticast_enable(struct rte_eth_dev *eth_dev)
 	if (!lio_dev->intf_open) {
 		lio_dev_err(lio_dev, "Port %d down, can't enable multicast\n",
 			    lio_dev->port_id);
-		return -EAGAIN;
+		return;
 	}
 
 	lio_dev->ifflags |= LIO_IFFLAG_ALLMULTI;
-	return lio_change_dev_flag(eth_dev);
+	lio_change_dev_flag(eth_dev);
 }
 
-static int
+static void
 lio_dev_allmulticast_disable(struct rte_eth_dev *eth_dev)
 {
 	struct lio_device *lio_dev = LIO_DEV(eth_dev);
@@ -1070,11 +1056,11 @@ lio_dev_allmulticast_disable(struct rte_eth_dev *eth_dev)
 	if (!lio_dev->intf_open) {
 		lio_dev_err(lio_dev, "Port %d down, can't disable multicast\n",
 			    lio_dev->port_id);
-		return -EAGAIN;
+		return;
 	}
 
 	lio_dev->ifflags &= ~LIO_IFFLAG_ALLMULTI;
-	return lio_change_dev_flag(eth_dev);
+	lio_change_dev_flag(eth_dev);
 }
 
 static void
@@ -1442,9 +1428,9 @@ lio_dev_start(struct rte_eth_dev *eth_dev)
 		goto dev_mtu_set_error;
 	}
 
-	mtu = (uint16_t)(frame_len - RTE_ETHER_HDR_LEN - RTE_ETHER_CRC_LEN);
-	if (mtu < RTE_ETHER_MIN_MTU)
-		mtu = RTE_ETHER_MIN_MTU;
+	mtu = (uint16_t)(frame_len - ETHER_HDR_LEN - ETHER_CRC_LEN);
+	if (mtu < ETHER_MIN_MTU)
+		mtu = ETHER_MIN_MTU;
 
 	if (eth_dev->data->mtu != mtu) {
 		ret = lio_dev_mtu_set(eth_dev, mtu);
@@ -1725,17 +1711,13 @@ lio_dev_configure(struct rte_eth_dev *eth_dev)
 	struct lio_device *lio_dev = LIO_DEV(eth_dev);
 	uint16_t timeout = LIO_MAX_CMD_TIMEOUT;
 	int retval, num_iqueues, num_oqueues;
-	uint8_t mac[RTE_ETHER_ADDR_LEN], i;
+	uint8_t mac[ETHER_ADDR_LEN], i;
 	struct lio_if_cfg_resp *resp;
 	struct lio_soft_command *sc;
 	union lio_if_cfg if_cfg;
 	uint32_t resp_size;
 
 	PMD_INIT_FUNC_TRACE();
-
-	if (eth_dev->data->dev_conf.rxmode.mq_mode & ETH_MQ_RX_RSS_FLAG)
-		eth_dev->data->dev_conf.rxmode.offloads |=
-			DEV_RX_OFFLOAD_RSS_HASH;
 
 	/* Inform firmware about change in number of queues to use.
 	 * Disable IO queues and reset registers for re-configuration.
@@ -1799,8 +1781,8 @@ lio_dev_configure(struct rte_eth_dev *eth_dev)
 		goto nic_config_fail;
 	}
 
-	strlcpy(lio_dev->firmware_version,
-		resp->cfg_info.lio_firmware_version, LIO_FW_VERSION_LENGTH);
+	snprintf(lio_dev->firmware_version, LIO_FW_VERSION_LENGTH, "%s",
+		 resp->cfg_info.lio_firmware_version);
 
 	lio_swap_8B_data((uint64_t *)(&resp->cfg_info),
 			 sizeof(struct octeon_if_cfg_info) >> 3);
@@ -1847,13 +1829,12 @@ lio_dev_configure(struct rte_eth_dev *eth_dev)
 
 	/* 64-bit swap required on LE machines */
 	lio_swap_8B_data(&lio_dev->linfo.hw_addr, 1);
-	for (i = 0; i < RTE_ETHER_ADDR_LEN; i++)
+	for (i = 0; i < ETHER_ADDR_LEN; i++)
 		mac[i] = *((uint8_t *)(((uint8_t *)&lio_dev->linfo.hw_addr) +
 				       2 + i));
 
 	/* Copy the permanent MAC address */
-	rte_ether_addr_copy((struct rte_ether_addr *)mac,
-			&eth_dev->data->mac_addrs[0]);
+	ether_addr_copy((struct ether_addr *)mac, &eth_dev->data->mac_addrs[0]);
 
 	/* enable firmware checksum support for tunnel packets */
 	lio_enable_hw_tunnel_rx_checksum(eth_dev);
@@ -2107,7 +2088,7 @@ lio_eth_dev_init(struct rte_eth_dev *eth_dev)
 	}
 
 	eth_dev->dev_ops = &liovf_eth_dev_ops;
-	eth_dev->data->mac_addrs = rte_zmalloc("lio", RTE_ETHER_ADDR_LEN, 0);
+	eth_dev->data->mac_addrs = rte_zmalloc("lio", ETHER_ADDR_LEN, 0);
 	if (eth_dev->data->mac_addrs == NULL) {
 		lio_dev_err(lio_dev,
 			    "MAC addresses memory allocation failed\n");
@@ -2158,5 +2139,13 @@ static struct rte_pci_driver rte_liovf_pmd = {
 RTE_PMD_REGISTER_PCI(net_liovf, rte_liovf_pmd);
 RTE_PMD_REGISTER_PCI_TABLE(net_liovf, pci_id_liovf_map);
 RTE_PMD_REGISTER_KMOD_DEP(net_liovf, "* igb_uio | vfio-pci");
-RTE_LOG_REGISTER(lio_logtype_init, pmd.net.liquidio.init, NOTICE);
-RTE_LOG_REGISTER(lio_logtype_driver, pmd.net.liquidio.driver, NOTICE);
+
+RTE_INIT(lio_init_log)
+{
+	lio_logtype_init = rte_log_register("pmd.net.liquidio.init");
+	if (lio_logtype_init >= 0)
+		rte_log_set_level(lio_logtype_init, RTE_LOG_NOTICE);
+	lio_logtype_driver = rte_log_register("pmd.net.liquidio.driver");
+	if (lio_logtype_driver >= 0)
+		rte_log_set_level(lio_logtype_driver, RTE_LOG_NOTICE);
+}

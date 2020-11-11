@@ -7,9 +7,11 @@ include $(RTE_SDK)/mk/rte.vars.mk
 LIB = librte_kvargs.a
 
 CFLAGS += $(WERROR_FLAGS) -I$(SRCDIR) -O3
-CFLAGS += -I$(RTE_SDK)/lib/librte_eal/include
+CFLAGS += -I$(RTE_SDK)/lib/librte_eal/common/include
 
 EXPORT_MAP := rte_kvargs_version.map
+
+LIBABIVER := 1
 
 # all source are stored in SRCS-y
 SRCS-$(CONFIG_RTE_LIBRTE_KVARGS) := rte_kvargs.c

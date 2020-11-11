@@ -12,10 +12,12 @@ sources = [
 
 error_cflags = ['-Wno-unused-parameter', '-Wno-unused-value',
 	'-Wno-strict-aliasing', '-Wno-format-extra-args',
-	'-Wno-unused-variable',
-	'-Wno-implicit-fallthrough'
+	'-Wno-unused-variable', '-Wno-missing-field-initializers'
 ]
 c_args = cflags
+if allow_experimental_apis
+	c_args += '-DALLOW_EXPERIMENTAL_API'
+endif
 foreach flag: error_cflags
 	if cc.has_argument(flag)
 		c_args += flag

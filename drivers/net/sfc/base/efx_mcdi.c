@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: BSD-3-Clause
  *
- * Copyright(c) 2019-2020 Xilinx, Inc.
- * Copyright(c) 2008-2019 Solarflare Communications Inc.
+ * Copyright (c) 2008-2018 Solarflare Communications Inc.
+ * All rights reserved.
  */
 
 #include "efx.h"
@@ -45,7 +45,7 @@ static const efx_mcdi_ops_t	__efx_mcdi_siena_ops = {
 
 #endif	/* EFSYS_OPT_SIENA */
 
-#if EFX_OPTS_EF10()
+#if EFSYS_OPT_HUNTINGTON || EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2
 
 static const efx_mcdi_ops_t	__efx_mcdi_ef10_ops = {
 	ef10_mcdi_init,			/* emco_init */
@@ -58,7 +58,7 @@ static const efx_mcdi_ops_t	__efx_mcdi_ef10_ops = {
 	ef10_mcdi_get_timeout,		/* emco_get_timeout */
 };
 
-#endif	/* EFX_OPTS_EF10() */
+#endif	/* EFSYS_OPT_HUNTINGTON || EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2 */
 
 
 
@@ -360,11 +360,7 @@ efx_mcdi_read_response_header(
 		rc = EIO;
 		goto fail1;
 	}
-#if EFSYS_OPT_MCDI_PROXY_AUTH_SERVER
-	if (((cmd != emrp->emr_cmd) && (emrp->emr_cmd != MC_CMD_PROXY_CMD)) ||
-#else
 	if ((cmd != emrp->emr_cmd) ||
-#endif
 	    (seq != ((emip->emi_seq - 1) & EFX_MASK32(MCDI_HEADER_SEQ)))) {
 		/* Response is for a different request */
 		rc = EIO;
@@ -446,11 +442,6 @@ efx_mcdi_finish_response(
 	efx_dword_t hdr[2];
 	unsigned int hdr_len;
 	size_t bytes;
-	unsigned int resp_off;
-#if EFSYS_OPT_MCDI_PROXY_AUTH_SERVER
-	unsigned int resp_cmd;
-	boolean_t proxied_cmd_resp = B_FALSE;
-#endif /* EFSYS_OPT_MCDI_PROXY_AUTH_SERVER */
 
 	if (emrp->emr_out_buf == NULL)
 		return;
@@ -465,35 +456,14 @@ efx_mcdi_finish_response(
 		 */
 		efx_mcdi_read_response(enp, &hdr[1], hdr_len, sizeof (hdr[1]));
 		hdr_len += sizeof (hdr[1]);
-		resp_off = hdr_len;
 
 		emrp->emr_out_length_used = EFX_DWORD_FIELD(hdr[1],
-						MC_CMD_V2_EXTN_IN_ACTUAL_LEN);
-#if EFSYS_OPT_MCDI_PROXY_AUTH_SERVER
-		/*
-		 * A proxy MCDI command is executed by PF on behalf of
-		 * one of its VFs. The command to be proxied follows
-		 * immediately afterward in the host buffer.
-		 * PROXY_CMD inner call complete response should be copied to
-		 * output buffer so that it can be returned to the requesting
-		 * function in MC_CMD_PROXY_COMPLETE payload.
-		 */
-		resp_cmd =
-			EFX_DWORD_FIELD(hdr[1], MC_CMD_V2_EXTN_IN_EXTENDED_CMD);
-		proxied_cmd_resp = ((emrp->emr_cmd == MC_CMD_PROXY_CMD) &&
-					(resp_cmd != MC_CMD_PROXY_CMD));
-		if (proxied_cmd_resp) {
-			resp_off = 0;
-			emrp->emr_out_length_used += hdr_len;
-		}
-#endif /* EFSYS_OPT_MCDI_PROXY_AUTH_SERVER */
-	} else {
-		resp_off = hdr_len;
+					    MC_CMD_V2_EXTN_IN_ACTUAL_LEN);
 	}
 
 	/* Copy payload out into caller supplied buffer */
 	bytes = MIN(emrp->emr_out_length_used, emrp->emr_out_length);
-	efx_mcdi_read_response(enp, emrp->emr_out_buf, resp_off, bytes);
+	efx_mcdi_read_response(enp, emrp->emr_out_buf, hdr_len, bytes);
 
 #if EFSYS_OPT_MCDI_LOGGING
 	if (emtp->emt_logger != NULL) {
@@ -875,18 +845,6 @@ efx_mcdi_ev_proxy_response(
 }
 #endif /* EFSYS_OPT_MCDI_PROXY_AUTH */
 
-#if EFSYS_OPT_MCDI_PROXY_AUTH_SERVER
-			void
-efx_mcdi_ev_proxy_request(
-	__in		efx_nic_t *enp,
-	__in		unsigned int index)
-{
-	const efx_mcdi_transport_t *emtp = enp->en_mcdi.em_emtp;
-
-	if (emtp->emt_ev_proxy_request != NULL)
-		emtp->emt_ev_proxy_request(emtp->emt_context, index);
-}
-#endif /* EFSYS_OPT_MCDI_PROXY_AUTH_SERVER */
 			void
 efx_mcdi_ev_death(
 	__in		efx_nic_t *enp,
@@ -1298,17 +1256,13 @@ efx_mcdi_drv_attach(
 	__in		boolean_t attach)
 {
 	efx_mcdi_req_t req;
-	EFX_MCDI_DECLARE_BUF(payload, MC_CMD_DRV_ATTACH_IN_V2_LEN,
+	EFX_MCDI_DECLARE_BUF(payload, MC_CMD_DRV_ATTACH_IN_LEN,
 		MC_CMD_DRV_ATTACH_EXT_OUT_LEN);
 	efx_rc_t rc;
 
 	req.emr_cmd = MC_CMD_DRV_ATTACH;
 	req.emr_in_buf = payload;
-	if (enp->en_drv_version[0] == '\0') {
-		req.emr_in_length = MC_CMD_DRV_ATTACH_IN_LEN;
-	} else {
-		req.emr_in_length = MC_CMD_DRV_ATTACH_IN_V2_LEN;
-	}
+	req.emr_in_length = MC_CMD_DRV_ATTACH_IN_LEN;
 	req.emr_out_buf = payload;
 	req.emr_out_length = MC_CMD_DRV_ATTACH_EXT_OUT_LEN;
 
@@ -1328,14 +1282,6 @@ efx_mcdi_drv_attach(
 	    DRV_ATTACH_IN_SUBVARIANT_AWARE, EFSYS_OPT_FW_SUBVARIANT_AWARE);
 	MCDI_IN_SET_DWORD(req, DRV_ATTACH_IN_UPDATE, 1);
 	MCDI_IN_SET_DWORD(req, DRV_ATTACH_IN_FIRMWARE_ID, enp->efv);
-
-	if (req.emr_in_length >= MC_CMD_DRV_ATTACH_IN_V2_LEN) {
-		EFX_STATIC_ASSERT(sizeof (enp->en_drv_version) ==
-		    MC_CMD_DRV_ATTACH_IN_V2_DRIVER_VERSION_LEN);
-		memcpy(MCDI_IN2(req, char, DRV_ATTACH_IN_V2_DRIVER_VERSION),
-		    enp->en_drv_version,
-		    MC_CMD_DRV_ATTACH_IN_V2_DRIVER_VERSION_LEN);
-	}
 
 	efx_mcdi_execute(enp, &req);
 
@@ -1696,7 +1642,7 @@ fail1:
 
 #if EFSYS_OPT_BIST
 
-#if EFX_OPTS_EF10()
+#if EFSYS_OPT_HUNTINGTON || EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2
 /*
  * Enter bist offline mode. This is a fw mode which puts the NIC into a state
  * where memory BIST tests can be run and not much else can interfere or happen.
@@ -1732,7 +1678,7 @@ fail1:
 
 	return (rc);
 }
-#endif /* EFX_OPTS_EF10() */
+#endif /* EFSYS_OPT_HUNTINGTON || EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2 */
 
 	__checkReturn		efx_rc_t
 efx_mcdi_bist_start(
@@ -1834,10 +1780,17 @@ fail1:
 
 #if EFSYS_OPT_MAC_STATS
 
-	__checkReturn	efx_rc_t
+typedef enum efx_stats_action_e {
+	EFX_STATS_CLEAR,
+	EFX_STATS_UPLOAD,
+	EFX_STATS_ENABLE_NOEVENTS,
+	EFX_STATS_ENABLE_EVENTS,
+	EFX_STATS_DISABLE,
+} efx_stats_action_t;
+
+static	__checkReturn	efx_rc_t
 efx_mcdi_mac_stats(
 	__in		efx_nic_t *enp,
-	__in		uint32_t vport_id,
 	__in_opt	efsys_mem_t *esmp,
 	__in		efx_stats_action_t action,
 	__in		uint16_t period_ms)
@@ -1903,7 +1856,7 @@ efx_mcdi_mac_stats(
 	 *	 vadapter has already been deleted.
 	 */
 	MCDI_IN_SET_DWORD(req, MAC_STATS_IN_PORT_ID,
-		(disable ? EVB_PORT_ID_NULL : vport_id));
+	    (disable ? EVB_PORT_ID_NULL : enp->en_vport_id));
 
 	efx_mcdi_execute(enp, &req);
 
@@ -1936,8 +1889,7 @@ efx_mcdi_mac_stats_clear(
 {
 	efx_rc_t rc;
 
-	if ((rc = efx_mcdi_mac_stats(enp, enp->en_vport_id, NULL,
-			EFX_STATS_CLEAR, 0)) != 0)
+	if ((rc = efx_mcdi_mac_stats(enp, NULL, EFX_STATS_CLEAR, 0)) != 0)
 		goto fail1;
 
 	return (0);
@@ -1960,8 +1912,7 @@ efx_mcdi_mac_stats_upload(
 	 * avoid having to pull the statistics buffer into the cache to
 	 * maintain cumulative statistics.
 	 */
-	if ((rc = efx_mcdi_mac_stats(enp, enp->en_vport_id, esmp,
-			EFX_STATS_UPLOAD, 0)) != 0)
+	if ((rc = efx_mcdi_mac_stats(enp, esmp, EFX_STATS_UPLOAD, 0)) != 0)
 		goto fail1;
 
 	return (0);
@@ -1989,14 +1940,13 @@ efx_mcdi_mac_stats_periodic(
 	 * Medford uses a fixed 1sec period before v6.2.1.1033 firmware.
 	 */
 	if (period_ms == 0)
-		rc = efx_mcdi_mac_stats(enp, enp->en_vport_id, NULL,
-			EFX_STATS_DISABLE, 0);
+		rc = efx_mcdi_mac_stats(enp, NULL, EFX_STATS_DISABLE, 0);
 	else if (events)
-		rc = efx_mcdi_mac_stats(enp, enp->en_vport_id, esmp,
-			EFX_STATS_ENABLE_EVENTS, period_ms);
+		rc = efx_mcdi_mac_stats(enp, esmp, EFX_STATS_ENABLE_EVENTS,
+		    period_ms);
 	else
-		rc = efx_mcdi_mac_stats(enp, enp->en_vport_id, esmp,
-			EFX_STATS_ENABLE_NOEVENTS, period_ms);
+		rc = efx_mcdi_mac_stats(enp, esmp, EFX_STATS_ENABLE_NOEVENTS,
+		    period_ms);
 
 	if (rc != 0)
 		goto fail1;
@@ -2011,7 +1961,7 @@ fail1:
 
 #endif	/* EFSYS_OPT_MAC_STATS */
 
-#if EFX_OPTS_EF10()
+#if EFSYS_OPT_HUNTINGTON || EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2
 
 /*
  * This function returns the pf and vf number of a function.  If it is a pf the
@@ -2108,7 +2058,7 @@ fail1:
 	return (rc);
 }
 
-#endif /* EFX_OPTS_EF10() */
+#endif /* EFSYS_OPT_HUNTINGTON || EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2 */
 
 	__checkReturn		efx_rc_t
 efx_mcdi_set_workaround(

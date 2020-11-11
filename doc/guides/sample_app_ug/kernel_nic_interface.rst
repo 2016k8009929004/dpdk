@@ -21,14 +21,14 @@ The FIFO queues contain pointers to data packets in the DPDK. This:
 
 *   Provides a faster mechanism to interface with the kernel net stack and eliminates system calls
 
-*   Facilitates the DPDK using standard Linux* userspace net tools (tshark, rsync, and so on)
+*   Facilitates the DPDK using standard Linux* userspace net tools (tcpdump, ftp, and so on)
 
 *   Eliminate the copy_to_user and copy_from_user operations on packets.
 
 The Kernel NIC Interface sample application is a simple example that demonstrates the use
 of the DPDK to create a path for packets to go through the Linux* kernel.
 This is done by creating one or more kernel net devices for each of the DPDK ports.
-The application allows the use of standard Linux tools (ethtool, iproute, tshark) with the DPDK ports and
+The application allows the use of standard Linux tools (ethtool, ifconfig, tcpdump) with the DPDK ports and
 also the exchange of packets between the DPDK application and the Linux* kernel.
 
 The Kernel NIC Interface sample application requires that the
@@ -87,7 +87,7 @@ The application is located in the ``examples/kni`` sub-directory.
 
 .. note::
 
-        This application is intended as a linux only.
+        This application is intended as a linuxapp only.
 
 Running the kni Example Application
 -----------------------------------
@@ -220,13 +220,13 @@ Enable KNI interface and assign an IP address:
 
 .. code-block:: console
 
-    # ip addr add dev vEth0_0 192.168.0.1
+    # ifconfig vEth0_0 192.168.0.1
 
 Show KNI interface configuration and statistics:
 
 .. code-block:: console
 
-    # ip -s -d addr show vEth0_0
+    # ifconfig vEth0_0
 
 The user can also check and reset the packet statistics inside the ``kni``
 application by sending the app the USR1 and USR2 signals:
@@ -234,16 +234,16 @@ application by sending the app the USR1 and USR2 signals:
 .. code-block:: console
 
     # Print statistics
-    # pkill -USR1 kni
+    # kill -SIGUSR1 `pidof kni`
 
     # Zero statistics
-    # pkill -USR2 kni
+    # kill -SIGUSR2 `pidof kni`
 
 Dump network traffic:
 
 .. code-block:: console
 
-    # tshark -n -i vEth0_0
+    # tcpdump -i vEth0_0
 
 The normal Linux commands can also be used to change the MAC address and
 MTU size used by the physical NIC which corresponds to the KNI interface.
@@ -254,19 +254,23 @@ Change the MAC address:
 
 .. code-block:: console
 
-    # ip link set dev vEth0_0 lladdr 0C:01:02:03:04:08
+    # ifconfig vEth0_0 hw ether 0C:01:02:03:04:08
 
 Change the MTU size:
 
 .. code-block:: console
 
-    # ip link set dev vEth0_0 mtu 1450
+    # ifconfig vEth0_0 mtu 1450
 
-Limited ethtool support:
+If DPDK is compiled with ``CONFIG_RTE_KNI_KMOD_ETHTOOL=y`` and an Intel
+NIC is used, the user can use ``ethtool`` on the KNI interface as if it
+were a normal Linux kernel interface.
+
+Displaying the NIC registers:
 
 .. code-block:: console
 
-    # ethtool -i vEth0_0
+    # ethtool -d vEth0_0
 
 When the ``kni`` application is closed, all the KNI interfaces are deleted
 from the Linux kernel.

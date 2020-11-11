@@ -1,14 +1,11 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Copyright(c) 2017 Intel Corporation
 
-if not is_linux
+if host_machine.system() != 'linux'
 	build = false
-	reason = 'only supported on linux'
 endif
 sources = files('rte_power.c', 'power_acpi_cpufreq.c',
 		'power_kvm_vm.c', 'guest_channel.c',
-		'rte_power_empty_poll.c',
-		'power_pstate_cpufreq.c',
-		'power_common.c')
+		'rte_power_empty_poll.c')
 headers = files('rte_power.h','rte_power_empty_poll.h')
 deps += ['timer']

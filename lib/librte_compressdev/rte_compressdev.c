@@ -7,7 +7,6 @@
 #include <stdio.h>
 #include <inttypes.h>
 
-#include <rte_string_fns.h>
 #include <rte_malloc.h>
 #include <rte_eal.h>
 #include <rte_memzone.h>
@@ -28,7 +27,7 @@ static struct rte_compressdev_global compressdev_globals = {
 		.max_devs		= RTE_COMPRESS_MAX_DEVS
 };
 
-const struct rte_compressdev_capabilities *
+const struct rte_compressdev_capabilities * __rte_experimental
 rte_compressdev_capability_get(uint8_t dev_id,
 			enum rte_comp_algorithm algo)
 {
@@ -51,7 +50,7 @@ rte_compressdev_capability_get(uint8_t dev_id,
 	return NULL;
 }
 
-const char *
+const char * __rte_experimental
 rte_compressdev_get_feature_name(uint64_t flag)
 {
 	switch (flag) {
@@ -67,8 +66,6 @@ rte_compressdev_get_feature_name(uint64_t flag)
 		return "CPU_AVX512";
 	case RTE_COMPDEV_FF_CPU_NEON:
 		return "CPU_NEON";
-	case RTE_COMPDEV_FF_OP_DONE_IN_DEQUEUE:
-		return "OP_DONE_IN_DEQ";
 	default:
 		return NULL;
 	}
@@ -80,7 +77,7 @@ rte_compressdev_get_dev(uint8_t dev_id)
 	return &compressdev_globals.devs[dev_id];
 }
 
-struct rte_compressdev *
+struct rte_compressdev * __rte_experimental
 rte_compressdev_pmd_get_named_dev(const char *name)
 {
 	struct rte_compressdev *dev;
@@ -116,7 +113,7 @@ rte_compressdev_is_valid_dev(uint8_t dev_id)
 }
 
 
-int
+int __rte_experimental
 rte_compressdev_get_dev_id(const char *name)
 {
 	unsigned int i;
@@ -134,13 +131,13 @@ rte_compressdev_get_dev_id(const char *name)
 	return -1;
 }
 
-uint8_t
+uint8_t __rte_experimental
 rte_compressdev_count(void)
 {
 	return compressdev_globals.nb_devs;
 }
 
-uint8_t
+uint8_t __rte_experimental
 rte_compressdev_devices_get(const char *driver_name, uint8_t *devices,
 	uint8_t nb_devices)
 {
@@ -165,7 +162,7 @@ rte_compressdev_devices_get(const char *driver_name, uint8_t *devices,
 	return count;
 }
 
-int
+int __rte_experimental
 rte_compressdev_socket_id(uint8_t dev_id)
 {
 	struct rte_compressdev *dev;
@@ -222,7 +219,7 @@ rte_compressdev_find_free_device_index(void)
 	return RTE_COMPRESS_MAX_DEVS;
 }
 
-struct rte_compressdev *
+struct rte_compressdev * __rte_experimental
 rte_compressdev_pmd_allocate(const char *name, int socket_id)
 {
 	struct rte_compressdev *compressdev;
@@ -253,8 +250,8 @@ rte_compressdev_pmd_allocate(const char *name, int socket_id)
 
 		compressdev->data = compressdev_data;
 
-		strlcpy(compressdev->data->name, name,
-			RTE_COMPRESSDEV_NAME_MAX_LEN);
+		snprintf(compressdev->data->name, RTE_COMPRESSDEV_NAME_MAX_LEN,
+				"%s", name);
 
 		compressdev->data->dev_id = dev_id;
 		compressdev->data->socket_id = socket_id;
@@ -268,7 +265,7 @@ rte_compressdev_pmd_allocate(const char *name, int socket_id)
 	return compressdev;
 }
 
-int
+int __rte_experimental
 rte_compressdev_pmd_release_device(struct rte_compressdev *compressdev)
 {
 	int ret;
@@ -288,7 +285,7 @@ rte_compressdev_pmd_release_device(struct rte_compressdev *compressdev)
 	return 0;
 }
 
-uint16_t
+uint16_t __rte_experimental
 rte_compressdev_queue_pair_count(uint8_t dev_id)
 {
 	struct rte_compressdev *dev;
@@ -413,7 +410,7 @@ rte_compressdev_queue_pairs_release(struct rte_compressdev *dev)
 	return 0;
 }
 
-int
+int __rte_experimental
 rte_compressdev_configure(uint8_t dev_id, struct rte_compressdev_config *config)
 {
 	struct rte_compressdev *dev;
@@ -447,7 +444,7 @@ rte_compressdev_configure(uint8_t dev_id, struct rte_compressdev_config *config)
 	return (*dev->dev_ops->dev_configure)(dev, config);
 }
 
-int
+int __rte_experimental
 rte_compressdev_start(uint8_t dev_id)
 {
 	struct rte_compressdev *dev;
@@ -479,7 +476,7 @@ rte_compressdev_start(uint8_t dev_id)
 	return 0;
 }
 
-void
+void __rte_experimental
 rte_compressdev_stop(uint8_t dev_id)
 {
 	struct rte_compressdev *dev;
@@ -503,7 +500,7 @@ rte_compressdev_stop(uint8_t dev_id)
 	dev->data->dev_started = 0;
 }
 
-int
+int __rte_experimental
 rte_compressdev_close(uint8_t dev_id)
 {
 	struct rte_compressdev *dev;
@@ -538,7 +535,7 @@ rte_compressdev_close(uint8_t dev_id)
 	return 0;
 }
 
-int
+int __rte_experimental
 rte_compressdev_queue_pair_setup(uint8_t dev_id, uint16_t queue_pair_id,
 		uint32_t max_inflight_ops, int socket_id)
 {
@@ -573,7 +570,7 @@ rte_compressdev_queue_pair_setup(uint8_t dev_id, uint16_t queue_pair_id,
 			max_inflight_ops, socket_id);
 }
 
-uint16_t
+uint16_t __rte_experimental
 rte_compressdev_dequeue_burst(uint8_t dev_id, uint16_t qp_id,
 		struct rte_comp_op **ops, uint16_t nb_ops)
 {
@@ -585,7 +582,7 @@ rte_compressdev_dequeue_burst(uint8_t dev_id, uint16_t qp_id,
 	return nb_ops;
 }
 
-uint16_t
+uint16_t __rte_experimental
 rte_compressdev_enqueue_burst(uint8_t dev_id, uint16_t qp_id,
 		struct rte_comp_op **ops, uint16_t nb_ops)
 {
@@ -595,7 +592,7 @@ rte_compressdev_enqueue_burst(uint8_t dev_id, uint16_t qp_id,
 			dev->data->queue_pairs[qp_id], ops, nb_ops);
 }
 
-int
+int __rte_experimental
 rte_compressdev_stats_get(uint8_t dev_id, struct rte_compressdev_stats *stats)
 {
 	struct rte_compressdev *dev;
@@ -618,7 +615,7 @@ rte_compressdev_stats_get(uint8_t dev_id, struct rte_compressdev_stats *stats)
 	return 0;
 }
 
-void
+void __rte_experimental
 rte_compressdev_stats_reset(uint8_t dev_id)
 {
 	struct rte_compressdev *dev;
@@ -635,7 +632,7 @@ rte_compressdev_stats_reset(uint8_t dev_id)
 }
 
 
-void
+void __rte_experimental
 rte_compressdev_info_get(uint8_t dev_id, struct rte_compressdev_info *dev_info)
 {
 	struct rte_compressdev *dev;
@@ -655,7 +652,7 @@ rte_compressdev_info_get(uint8_t dev_id, struct rte_compressdev_info *dev_info)
 	dev_info->driver_name = dev->device->driver->name;
 }
 
-int
+int __rte_experimental
 rte_compressdev_private_xform_create(uint8_t dev_id,
 		const struct rte_comp_xform *xform,
 		void **priv_xform)
@@ -680,7 +677,7 @@ rte_compressdev_private_xform_create(uint8_t dev_id,
 	return 0;
 }
 
-int
+int __rte_experimental
 rte_compressdev_private_xform_free(uint8_t dev_id, void *priv_xform)
 {
 	struct rte_compressdev *dev;
@@ -703,7 +700,7 @@ rte_compressdev_private_xform_free(uint8_t dev_id, void *priv_xform)
 	return 0;
 }
 
-int
+int __rte_experimental
 rte_compressdev_stream_create(uint8_t dev_id,
 		const struct rte_comp_xform *xform,
 		void **stream)
@@ -729,7 +726,7 @@ rte_compressdev_stream_create(uint8_t dev_id,
 }
 
 
-int
+int __rte_experimental
 rte_compressdev_stream_free(uint8_t dev_id, void *stream)
 {
 	struct rte_compressdev *dev;
@@ -752,7 +749,7 @@ rte_compressdev_stream_free(uint8_t dev_id, void *stream)
 	return 0;
 }
 
-const char *
+const char * __rte_experimental
 rte_compressdev_name_get(uint8_t dev_id)
 {
 	struct rte_compressdev *dev = rte_compressdev_get_dev(dev_id);
@@ -763,4 +760,9 @@ rte_compressdev_name_get(uint8_t dev_id)
 	return dev->data->name;
 }
 
-RTE_LOG_REGISTER(compressdev_logtype, lib.compressdev, NOTICE);
+RTE_INIT(rte_compressdev_log)
+{
+	compressdev_logtype = rte_log_register("lib.compressdev");
+	if (compressdev_logtype >= 0)
+		rte_log_set_level(compressdev_logtype, RTE_LOG_NOTICE);
+}

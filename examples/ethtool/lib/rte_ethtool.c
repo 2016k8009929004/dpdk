@@ -4,7 +4,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
-#include <rte_string_fns.h>
 #include <rte_version.h>
 #include <rte_ethdev.h>
 #include <rte_ether.h>
@@ -41,17 +40,12 @@ rte_ethtool_get_drvinfo(uint16_t port_id, struct ethtool_drvinfo *drvinfo)
 		printf("Insufficient fw version buffer size, "
 		       "the minimum size should be %d\n", ret);
 
-	ret = rte_eth_dev_info_get(port_id, &dev_info);
-	if (ret != 0) {
-		printf("Error during getting device (port %u) info: %s\n",
-		       port_id, strerror(-ret));
+	rte_eth_dev_info_get(port_id, &dev_info);
 
-		return ret;
-	}
-
-	strlcpy(drvinfo->driver, dev_info.driver_name,
-		sizeof(drvinfo->driver));
-	strlcpy(drvinfo->version, rte_version(), sizeof(drvinfo->version));
+	snprintf(drvinfo->driver, sizeof(drvinfo->driver), "%s",
+		dev_info.driver_name);
+	snprintf(drvinfo->version, sizeof(drvinfo->version), "%s",
+		rte_version());
 	/* TODO: replace bus_info by rte_devargs.name */
 	if (dev_info.device)
 		bus = rte_bus_find_by_device(dev_info.device);
@@ -124,13 +118,9 @@ int
 rte_ethtool_get_link(uint16_t port_id)
 {
 	struct rte_eth_link link;
-	int ret;
 
 	RTE_ETH_VALID_PORTID_OR_ERR_RET(port_id, -ENODEV);
-	ret = rte_eth_link_get(port_id, &link);
-	if (ret < 0)
-		return ret;
-
+	rte_eth_link_get(port_id, &link);
 	return link.link_status;
 }
 
@@ -312,23 +302,18 @@ rte_ethtool_net_stop(uint16_t port_id)
 }
 
 int
-rte_ethtool_net_get_mac_addr(uint16_t port_id, struct rte_ether_addr *addr)
+rte_ethtool_net_get_mac_addr(uint16_t port_id, struct ether_addr *addr)
 {
-	int ret;
-
 	RTE_ETH_VALID_PORTID_OR_ERR_RET(port_id, -ENODEV);
 	if (addr == NULL)
 		return -EINVAL;
-
-	ret = rte_eth_macaddr_get(port_id, addr);
-	if (ret != 0)
-		return ret;
+	rte_eth_macaddr_get(port_id, addr);
 
 	return 0;
 }
 
 int
-rte_ethtool_net_set_mac_addr(uint16_t port_id, struct rte_ether_addr *addr)
+rte_ethtool_net_set_mac_addr(uint16_t port_id, struct ether_addr *addr)
 {
 	if (addr == NULL)
 		return -EINVAL;
@@ -337,11 +322,11 @@ rte_ethtool_net_set_mac_addr(uint16_t port_id, struct rte_ether_addr *addr)
 
 int
 rte_ethtool_net_validate_addr(uint16_t port_id __rte_unused,
-	struct rte_ether_addr *addr)
+	struct ether_addr *addr)
 {
 	if (addr == NULL)
 		return -EINVAL;
-	return rte_is_valid_assigned_ether_addr(addr);
+	return is_valid_assigned_ether_addr(addr);
 }
 
 int
@@ -387,10 +372,7 @@ rte_ethtool_net_set_rx_mode(uint16_t port_id)
 	uint16_t vf;
 	int ret;
 
-	ret = rte_eth_dev_info_get(port_id, &dev_info);
-	if (ret != 0)
-		return ret;
-
+	rte_eth_dev_info_get(port_id, &dev_info);
 	num_vfs = dev_info.max_vfs;
 
 	/* Set VF vf_rx_mode, VF unsupport status is discard */
@@ -418,14 +400,11 @@ rte_ethtool_get_ringparam(uint16_t port_id,
 	struct rte_eth_rxq_info rx_qinfo;
 	struct rte_eth_txq_info tx_qinfo;
 	int stat;
-	int ret;
 
 	if (ring_param == NULL)
 		return -EINVAL;
 
-	ret = rte_eth_dev_info_get(port_id, &dev_info);
-	if (ret != 0)
-		return ret;
+	rte_eth_dev_info_get(port_id, &dev_info);
 
 	stat = rte_eth_rx_queue_info_get(port_id, 0, &rx_qinfo);
 	if (stat != 0)

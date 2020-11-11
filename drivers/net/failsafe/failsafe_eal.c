@@ -3,7 +3,6 @@
  * Copyright 2017 Mellanox Technologies, Ltd
  */
 
-#include <rte_string_fns.h>
 #include <rte_malloc.h>
 
 #include "failsafe_private.h"
@@ -85,9 +84,8 @@ fs_bus_init(struct rte_eth_dev *dev)
 				snprintf(devstr, sizeof(devstr), "%s,%s",
 					 probed_da->name, probed_da->args);
 			else
-				strlcpy(devstr,
-					rte_eth_devices[pid].device->name,
-					sizeof(devstr));
+				snprintf(devstr, sizeof(devstr), "%s",
+					 rte_eth_devices[pid].device->name);
 			ret = rte_devargs_parse(da, devstr);
 			if (ret) {
 				ERROR("Probed devargs parsing failed with code"
@@ -114,9 +112,9 @@ fs_bus_init(struct rte_eth_dev *dev)
 				continue;
 			}
 		}
-		sdev->sdev_port_id = pid;
+		ETH(sdev) = &rte_eth_devices[pid];
 		SUB_ID(sdev) = i;
-		sdev->fs_port_id = dev->data->port_id;
+		sdev->fs_dev = dev;
 		sdev->dev = ETH(sdev)->device;
 		sdev->state = DEV_PROBED;
 	}

@@ -12,7 +12,6 @@
 
 #define NEW_LINE_STR	"#"
 #define TEST_TYPE_KEY	" for CBC"
-#define TEST_TYPE_ECB_KEY	" for ECB"
 #define TEST_CBCI_KEY	" for CBCI"
 
 #define ENC_STR		"[ENCRYPT]"
@@ -59,7 +58,9 @@ static int
 parse_tdes_uint8_hex_str(const char *key, char *src, struct fips_val *val);
 
 static int
-parse_tdes_interim(const char *key, char *text, struct fips_val *val);
+parse_tdes_interim(const char *key,
+		__attribute__((__unused__)) char *text,
+		struct fips_val *val);
 
 struct fips_test_callback tdes_tests_vectors[] = {
 		{KEYS_STR, parse_tdes_uint8_hex_str, &vec.cipher_auth.key},
@@ -75,7 +76,6 @@ struct fips_test_callback tdes_tests_vectors[] = {
 struct fips_test_callback tdes_tests_interim_vectors[] = {
 		{ENC_STR, parse_tdes_interim, NULL},
 		{DEC_STR, parse_tdes_interim, NULL},
-		{NK_STR, parse_tdes_interim, NULL},
 		{NULL, NULL, NULL} /**< end pointer */
 };
 
@@ -93,23 +93,21 @@ struct fips_test_callback tdes_writeback_callbacks[] = {
 };
 
 static int
-parse_tdes_interim(const char *key, char *text,
-		__rte_unused struct fips_val *val)
+parse_tdes_interim(const char *key,
+		__attribute__((__unused__)) char *text,
+		__attribute__((__unused__)) struct fips_val *val)
 {
 	if (strstr(key, ENC_STR))
 		info.op = FIPS_TEST_ENC_AUTH_GEN;
 	else if (strstr(key, DEC_STR))
 		info.op = FIPS_TEST_DEC_AUTH_VERIF;
-	else if (strstr(key, NK_STR)) {
-		if (strcmp(text, "NumKeys = 1") == 0)
-			info.interim_info.tdes_data.nb_keys = 1;
-		else if (strcmp(text, "NumKeys = 2") == 0)
-			info.interim_info.tdes_data.nb_keys = 2;
-		else if (strcmp(text, "NumKeys = 3") == 0)
-			info.interim_info.tdes_data.nb_keys = 3;
-		else
-			return -EINVAL;
-	} else
+	else if (strstr(NK_STR, "NumKeys = 1"))
+		info.interim_info.tdes_data.nb_keys = 1;
+	else if (strstr(NK_STR, "NumKeys = 2"))
+		info.interim_info.tdes_data.nb_keys = 2;
+	else if (strstr(NK_STR, "NumKeys = 3"))
+		info.interim_info.tdes_data.nb_keys = 3;
+	else
 		return -EINVAL;
 
 	return 0;
@@ -254,12 +252,6 @@ parse_test_tdes_init(void)
 			if (strstr(line, test_types[j].desc)) {
 				info.interim_info.tdes_data.test_type =
 						test_types[j].type;
-				if (strstr(line, TEST_TYPE_ECB_KEY))
-					info.interim_info.tdes_data.test_mode =
-						TDES_MODE_ECB;
-				else
-					info.interim_info.tdes_data.test_mode =
-						TDES_MODE_CBC;
 				break;
 			}
 	}

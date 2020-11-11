@@ -38,8 +38,7 @@ enum {
 #define RTE_EVENT_ETH_RX_ADAPTER_DPAA2_CAP \
 		(RTE_EVENT_ETH_RX_ADAPTER_CAP_INTERNAL_PORT | \
 		RTE_EVENT_ETH_RX_ADAPTER_CAP_MULTI_EVENTQ | \
-		RTE_EVENT_ETH_RX_ADAPTER_CAP_OVERRIDE_FLOW_ID | \
-		RTE_EVENT_ETH_TX_ADAPTER_CAP_INTERNAL_PORT)
+		RTE_EVENT_ETH_RX_ADAPTER_CAP_OVERRIDE_FLOW_ID)
 
 /**< Crypto Rx adapter cap to return If the packet transfers from
  * the cryptodev to eventdev with DPAA2 devices.
@@ -52,6 +51,17 @@ enum {
 /**< Ethernet Rx adapter cap to return If the packet transfers from
  * the ethdev to eventdev with DPAA2 devices.
  */
+
+struct dpaa2_dpcon_dev {
+	TAILQ_ENTRY(dpaa2_dpcon_dev) next;
+	struct fsl_mc_io dpcon;
+	uint16_t token;
+	rte_atomic16_t in_use;
+	uint32_t dpcon_id;
+	uint16_t qbman_ch_id;
+	uint8_t num_priorities;
+	uint8_t channel_index;
+};
 
 struct dpaa2_eventq {
 	/* DPcon device */
@@ -87,7 +97,5 @@ struct dpaa2_eventdev {
 
 struct dpaa2_dpcon_dev *rte_dpaa2_alloc_dpcon_dev(void);
 void rte_dpaa2_free_dpcon_dev(struct dpaa2_dpcon_dev *dpcon);
-
-int test_eventdev_dpaa2(void);
 
 #endif /* __DPAA2_EVENTDEV_H__ */

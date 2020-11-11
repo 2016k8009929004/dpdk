@@ -5,8 +5,8 @@ ifeq ($(RTE_SDK),)
 $(error "Please define RTE_SDK environment variable")
 endif
 
-# Default target, detect a build directory, by looking for a path with a .config
-RTE_TARGET ?= $(notdir $(abspath $(dir $(firstword $(wildcard $(RTE_SDK)/*/.config)))))
+# Default target, can be overridden by command line or environment
+RTE_TARGET ?= x86_64-native-linuxapp-gcc
 
 include $(RTE_SDK)/mk/rte.vars.mk
 
@@ -18,7 +18,6 @@ SRCS-y := main.c ethapp.c
 
 CFLAGS += -O3 -pthread -I$(SRCDIR)/../lib
 CFLAGS += $(WERROR_FLAGS)
-CFLAGS += -DALLOW_EXPERIMENTAL_API
 
 LDLIBS += -L$(subst ethtool-app,lib,$(RTE_OUTPUT))/lib
 LDLIBS += -lrte_ethtool

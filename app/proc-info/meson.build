@@ -2,4 +2,5 @@
 # Copyright(c) 2018 Intel Corporation
 
 sources = files('main.c')
-deps += ['ethdev', 'metrics', 'security']
+allow_experimental_apis = true
+deps += ['ethdev', 'metrics']

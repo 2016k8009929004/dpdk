@@ -242,10 +242,9 @@ Once queues are set up successfully, create the ports as required.
         };
         int dev_id = 0;
         int rx_port_id = 0;
-        int worker_port_id;
         int err = rte_event_port_setup(dev_id, rx_port_id, &rx_conf);
 
-        for (worker_port_id = 1; worker_port_id <= 4; worker_port_id++) {
+        for(int worker_port_id = 1; worker_port_id <= 4; worker_port_id++) {
 	        int err = rte_event_port_setup(dev_id, worker_port_id, &worker_conf);
         }
 
@@ -278,9 +277,8 @@ can be achieved like this:
         uint8_t atomic_qs[] = {0, 1};
         uint8_t single_link_q = 2;
         uint8_t priority = RTE_EVENT_DEV_PRIORITY_NORMAL;
-        int worker_port_id;
 
-        for (worker_port_id = 1; worker_port_id <= 4; worker_port_id++) {
+        for(int worker_port_id = 1; worker_port_id <= 4; worker_port_id++) {
                 int links_made = rte_event_port_link(dev_id, worker_port_id, atomic_qs, NULL, 2);
         }
         int links_made = rte_event_port_link(dev_id, tx_port_id, &single_link_q, &priority, 1);
@@ -297,11 +295,6 @@ eventdev.
 .. code-block:: c
 
         int err = rte_event_dev_start(dev_id);
-
-.. Note::
-
-         EventDev needs to be started before starting the event producers such
-         as event_eth_rx_adapter, event_timer_adapter and event_crypto_adapter.
 
 Ingress of New Events
 ~~~~~~~~~~~~~~~~~~~~~

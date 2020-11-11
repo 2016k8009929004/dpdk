@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: (BSD-3-Clause OR GPL-2.0)
  *
  * Copyright 2010-2016 Freescale Semiconductor Inc.
- * Copyright 2017-2020 NXP
+ * Copyright 2017 NXP
  *
  */
 
@@ -11,8 +11,7 @@
 
 /* This header declares the driver interface we implement */
 #include <fman.h>
-#include <dpaa_of.h>
-#include <rte_malloc.h>
+#include <of.h>
 #include <rte_dpaa_logs.h>
 #include <rte_string_fns.h>
 
@@ -178,15 +177,13 @@ fman_if_init(const struct device_node *dpa_node)
 	mprop = "fsl,fman-mac";
 
 	/* Allocate an object for this network interface */
-	__if = rte_malloc(NULL, sizeof(*__if), RTE_CACHE_LINE_SIZE);
+	__if = malloc(sizeof(*__if));
 	if (!__if) {
 		FMAN_ERR(-ENOMEM, "malloc(%zu)\n", sizeof(*__if));
 		goto err;
 	}
 	memset(__if, 0, sizeof(*__if));
 	INIT_LIST_HEAD(&__if->__if.bpool_list);
-	strlcpy(__if->node_name, dpa_node->name, IF_NAME_MAX_LEN - 1);
-	__if->node_name[IF_NAME_MAX_LEN - 1] = '\0';
 	strlcpy(__if->node_path, dpa_node->full_name, PATH_MAX - 1);
 	__if->node_path[PATH_MAX - 1] = '\0';
 
@@ -265,7 +262,7 @@ fman_if_init(const struct device_node *dpa_node)
 		fman_dealloc_bufs_mask_hi = 0;
 		fman_dealloc_bufs_mask_lo = 0;
 	}
-	/* Is the MAC node 1G, 2.5G, 10G? */
+	/* Is the MAC node 1G, 10G? */
 	__if->__if.is_memac = 0;
 
 	if (of_device_is_compatible(mac_node, "fsl,fman-1g-mac"))
@@ -281,9 +278,7 @@ fman_if_init(const struct device_node *dpa_node)
 			/* Right now forcing memac to 1g in case of error*/
 			__if->__if.mac_type = fman_mac_1g;
 		} else {
-			if (strstr(char_prop, "sgmii-2500"))
-				__if->__if.mac_type = fman_mac_2_5g;
-			else if (strstr(char_prop, "sgmii"))
+			if (strstr(char_prop, "sgmii"))
 				__if->__if.mac_type = fman_mac_1g;
 			else if (strstr(char_prop, "rgmii")) {
 				__if->__if.mac_type = fman_mac_1g;
@@ -438,7 +433,7 @@ fman_if_init(const struct device_node *dpa_node)
 		uint64_t bpool_host[6] = {0};
 		const char *pname;
 		/* Allocate an object for the pool */
-		bpool = rte_malloc(NULL, sizeof(*bpool), RTE_CACHE_LINE_SIZE);
+		bpool = malloc(sizeof(*bpool));
 		if (!bpool) {
 			FMAN_ERR(-ENOMEM, "malloc(%zu)\n", sizeof(*bpool));
 			goto err;
@@ -448,7 +443,7 @@ fman_if_init(const struct device_node *dpa_node)
 		if (!pool_node) {
 			FMAN_ERR(-ENXIO, "%s: bad fsl,bman-buffer-pools\n",
 				 dname);
-			rte_free(bpool);
+			free(bpool);
 			goto err;
 		}
 		pname = pool_node->full_name;
@@ -456,7 +451,7 @@ fman_if_init(const struct device_node *dpa_node)
 		prop = of_get_property(pool_node, "fsl,bpid", &proplen);
 		if (!prop) {
 			FMAN_ERR(-EINVAL, "%s: no fsl,bpid\n", pname);
-			rte_free(bpool);
+			free(bpool);
 			goto err;
 		}
 		assert(proplen == sizeof(*prop));
@@ -579,7 +574,7 @@ fman_finish(void)
 				-errno, strerror(errno));
 		printf("Tearing down %s\n", __if->node_path);
 		list_del(&__if->__if.node);
-		rte_free(__if);
+		free(__if);
 	}
 
 	close(fman_ccsr_map_fd);

@@ -54,7 +54,7 @@ static volatile bool force_quit;
 /****************/
 static const struct rte_eth_conf port_conf_default = {
 	.rxmode = {
-		.max_rx_pkt_len = RTE_ETHER_MAX_LEN,
+		.max_rx_pkt_len = ETHER_MAX_LEN,
 	},
 };
 
@@ -71,13 +71,7 @@ port_init(uint16_t port, struct rte_mempool *mbuf_pool)
 	if (!rte_eth_dev_is_valid_port(port))
 		return -1;
 
-	retval = rte_eth_dev_info_get(port, &dev_info);
-	if (retval != 0) {
-		printf("Error during getting device (port %u) info: %s\n",
-				port, strerror(-retval));
-		return retval;
-	}
-
+	rte_eth_dev_info_get(port, &dev_info);
 	if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_MBUF_FAST_FREE)
 		port_conf.txmode.offloads |=
 			DEV_TX_OFFLOAD_MBUF_FAST_FREE;
@@ -111,14 +105,8 @@ port_init(uint16_t port, struct rte_mempool *mbuf_pool)
 		return retval;
 
 	/* Display the port MAC address. */
-	struct rte_ether_addr addr;
-	retval = rte_eth_macaddr_get(port, &addr);
-	if (retval != 0) {
-		printf("Failed to get device (port %u) MAC address: %s\n",
-				port, rte_strerror(-retval));
-		return retval;
-	}
-
+	struct ether_addr addr;
+	rte_eth_macaddr_get(port, &addr);
 	printf("Port %u MAC: %02" PRIx8 " %02" PRIx8 " %02" PRIx8
 			   " %02" PRIx8 " %02" PRIx8 " %02" PRIx8 "\n",
 			(unsigned int)port,
@@ -127,9 +115,7 @@ port_init(uint16_t port, struct rte_mempool *mbuf_pool)
 			addr.addr_bytes[4], addr.addr_bytes[5]);
 
 	/* Enable RX in promiscuous mode for the Ethernet device. */
-	retval = rte_eth_promiscuous_enable(port);
-	if (retval != 0)
-		return retval;
+	rte_eth_promiscuous_enable(port);
 
 
 	return 0;
@@ -144,7 +130,10 @@ parse_portmask(const char *portmask)
 	/* parse hexadecimal string */
 	pm = strtoul(portmask, &end, 16);
 	if ((portmask[0] == '\0') || (end == NULL) || (*end != '\0'))
-		return 0;
+		return -1;
+
+	if (pm == 0)
+		return -1;
 
 	return pm;
 }
@@ -162,14 +151,15 @@ parse_args(int argc, char **argv)
 	static struct option lgopts[] = {
 		{ "mac-updating", no_argument, 0, 1},
 		{ "no-mac-updating", no_argument, 0, 0},
-		{ "core-branch-ratio", optional_argument, 0, 'b'},
+		{ "core-list", optional_argument, 0, 'l'},
 		{ "port-list", optional_argument, 0, 'p'},
+		{ "branch-ratio", optional_argument, 0, 'b'},
 		{NULL, 0, 0, 0}
 	};
 	argvopt = argv;
 	ci = get_core_info();
 
-	while ((opt = getopt_long(argc, argvopt, "p:q:T:b:",
+	while ((opt = getopt_long(argc, argvopt, "l:p:q:T:b:",
 				  lgopts, &option_index)) != EOF) {
 
 		switch (opt) {
@@ -181,8 +171,7 @@ parse_args(int argc, char **argv)
 				return -1;
 			}
 			break;
-		case 'b':
-			branch_ratio = BRANCH_RATIO_THRESHOLD;
+		case 'l':
 			oob_enable = malloc(ci->core_count * sizeof(uint16_t));
 			if (oob_enable == NULL) {
 				printf("Error - Unable to allocate memory\n");
@@ -190,36 +179,31 @@ parse_args(int argc, char **argv)
 			}
 			cnt = parse_set(optarg, oob_enable, ci->core_count);
 			if (cnt < 0) {
-				printf("Invalid core-list section in "
-				       "core-branch-ratio matrix - [%s]\n",
+				printf("Invalid core-list - [%s]\n",
 						optarg);
 				free(oob_enable);
 				break;
-			}
-			cnt = parse_branch_ratio(optarg, &branch_ratio);
-			if (cnt < 0) {
-				printf("Invalid branch-ratio section in "
-				       "core-branch-ratio matrix - [%s]\n",
-						optarg);
-				free(oob_enable);
-				break;
-			}
-			if (branch_ratio <= 0.0 || branch_ratio > 100.0) {
-				printf("invalid branch ratio specified\n");
-				return -1;
 			}
 			for (i = 0; i < ci->core_count; i++) {
 				if (oob_enable[i]) {
-					printf("***Using core %d "
-					       "with branch ratio %f\n",
-					       i, branch_ratio);
+					printf("***Using core %d\n", i);
 					ci->cd[i].oob_enabled = 1;
 					ci->cd[i].global_enabled_cpus = 1;
-					ci->cd[i].branch_ratio_threshold =
-								branch_ratio;
 				}
 			}
 			free(oob_enable);
+			break;
+		case 'b':
+			branch_ratio = 0.0;
+			if (strlen(optarg))
+				branch_ratio = atof(optarg);
+			if (branch_ratio <= 0.0) {
+				printf("invalid branch ratio specified\n");
+				return -1;
+			}
+			ci->branch_ratio_threshold = branch_ratio;
+			printf("***Setting branch ratio to %f\n",
+					branch_ratio);
 			break;
 		/* long options */
 		case 0:
@@ -245,7 +229,6 @@ check_all_ports_link_status(uint32_t port_mask)
 #define MAX_CHECK_TIME 90 /* 9s (90 * 100ms) in total */
 	uint16_t portid, count, all_ports_up, print_flag = 0;
 	struct rte_eth_link link;
-	int ret;
 
 	printf("\nChecking link status");
 	fflush(stdout);
@@ -259,14 +242,7 @@ check_all_ports_link_status(uint32_t port_mask)
 			if ((port_mask & (1 << portid)) == 0)
 				continue;
 			memset(&link, 0, sizeof(link));
-			ret = rte_eth_link_get_nowait(portid, &link);
-			if (ret < 0) {
-				all_ports_up = 0;
-				if (print_flag == 1)
-					printf("Port %u link get failed: %s\n",
-						portid, rte_strerror(-ret));
-				continue;
-			}
+			rte_eth_link_get_nowait(portid, &link);
 			/* print link status if flag set */
 			if (print_flag == 1) {
 				if (link.link_status)
@@ -304,7 +280,7 @@ check_all_ports_link_status(uint32_t port_mask)
 	}
 }
 static int
-run_monitor(__rte_unused void *arg)
+run_monitor(__attribute__((unused)) void *arg)
 {
 	if (channel_monitor_init() < 0) {
 		printf("Unable to initialize channel monitor\n");
@@ -315,7 +291,7 @@ run_monitor(__rte_unused void *arg)
 }
 
 static int
-run_core_monitor(__rte_unused void *arg)
+run_core_monitor(__attribute__((unused)) void *arg)
 {
 	if (branch_monitor_init() < 0) {
 		printf("Unable to initialize core monitor\n");
@@ -379,7 +355,7 @@ main(int argc, char **argv)
 
 		/* Initialize ports. */
 		RTE_ETH_FOREACH_DEV(portid) {
-			struct rte_ether_addr eth;
+			struct ether_addr eth;
 			int w, j;
 			int ret;
 
@@ -458,7 +434,7 @@ main(int argc, char **argv)
 		return -1;
 	}
 
-	add_host_channels();
+	add_host_channel();
 
 	printf("Running core monitor on lcore id %d\n", lcore_id);
 	rte_eal_remote_launch(run_core_monitor, NULL, lcore_id);

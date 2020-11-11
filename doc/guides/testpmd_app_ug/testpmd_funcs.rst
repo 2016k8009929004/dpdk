@@ -198,7 +198,9 @@ For example:
    Maximum number of MAC addresses: 64
    Maximum number of MAC addresses of hash filtering: 0
    VLAN offload:
-       strip on, filter on, extend off, qinq strip off
+       strip on
+       filter on
+       qinq(extend) off
    Redirection table size: 512
    Supported flow types:
      ipv4-frag
@@ -216,7 +218,6 @@ For example:
      vxlan
      geneve
      nvgre
-     vxlan-gpe
 
 show port rss reta
 ~~~~~~~~~~~~~~~~~~
@@ -252,21 +253,13 @@ Display information for a given port's RX/TX queue::
 
    testpmd> show (rxq|txq) info (port_id) (queue_id)
 
-show desc status(rxq|txq)
-~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Display information for a given port's RX/TX descriptor status::
-
-   testpmd> show port (port_id) (rxq|txq) (queue_id) desc (desc_id) status
-
-
 show config
 ~~~~~~~~~~~
 
 Displays the configuration of the application.
 The configuration comes from the command-line, the runtime or the application defaults::
 
-   testpmd> show config (rxtx|cores|fwd|txpkts|txtimes)
+   testpmd> show config (rxtx|cores|fwd|txpkts)
 
 The available information categories are:
 
@@ -277,8 +270,6 @@ The available information categories are:
 * ``fwd``: Packet forwarding configuration.
 
 * ``txpkts``: Packets to TX configuration.
-
-* ``txtimes``: Burst time pattern for Tx only mode.
 
 For example:
 
@@ -300,7 +291,7 @@ set fwd
 Set the packet forwarding mode::
 
    testpmd> set fwd (io|mac|macswap|flowgen| \
-                     rxonly|txonly|csum|icmpecho|noisy|5tswap) (""|retry)
+                     rxonly|txonly|csum|icmpecho|noisy) (""|retry)
 
 ``retry`` can be specified for forwarding engines except ``rx_only``.
 
@@ -331,17 +322,12 @@ The available information categories are:
 
 * ``ieee1588``: Demonstrate L2 IEEE1588 V2 PTP timestamping for RX and TX. Requires ``CONFIG_RTE_LIBRTE_IEEE1588=y``.
 
+* ``softnic``: Demonstrates the softnic forwarding operation. In this mode, packet forwarding is
+  similar to I/O mode except for the fact that packets are loopback to the softnic ports only. Therefore, portmask parameter should be set to softnic port only. The various software based custom NIC pipelines specified through the softnic firmware (DPDK packet framework script) can be tested in this mode. Furthermore, it allows to build 5-level hierarchical QoS scheduler as a default option that can be enabled through CLI once testpmd application is initialised. The user can modify the default scheduler hierarchy or can specify the new QoS Scheduler hierarchy through CLI. Requires ``CONFIG_RTE_LIBRTE_PMD_SOFTNIC=y``.
+
 * ``noisy``: Noisy neighbor simulation.
   Simulate more realistic behavior of a guest machine engaged in receiving
   and sending packets performing Virtual Network Function (VNF).
-
-* ``5tswap``: Swap the source and destination of L2,L3,L4 if they exist.
-
-  L2 swaps the source address and destination address of Ethernet, as same as ``macswap``.
-
-  L3 swaps the source address and destination address of IP (v4 and v6).
-
-  L4 swaps the source port and destination port of transport layer (TCP and UDP).
 
 Example::
 
@@ -349,48 +335,6 @@ Example::
 
    Set rxonly packet forwarding mode
 
-
-show fwd
-~~~~~~~~
-
-When running, forwarding engines maintain statistics from the time they have been started.
-Example for the io forwarding engine, with some packet drops on the tx side::
-
-   testpmd> show fwd stats all
-
-     ------- Forward Stats for RX Port= 0/Queue= 0 -> TX Port= 1/Queue= 0 -------
-     RX-packets: 274293770      TX-packets: 274293642      TX-dropped: 128
-
-     ------- Forward Stats for RX Port= 1/Queue= 0 -> TX Port= 0/Queue= 0 -------
-     RX-packets: 274301850      TX-packets: 274301850      TX-dropped: 0
-
-     ---------------------- Forward statistics for port 0  ----------------------
-     RX-packets: 274293802      RX-dropped: 0             RX-total: 274293802
-     TX-packets: 274301862      TX-dropped: 0             TX-total: 274301862
-     ----------------------------------------------------------------------------
-
-     ---------------------- Forward statistics for port 1  ----------------------
-     RX-packets: 274301894      RX-dropped: 0             RX-total: 274301894
-     TX-packets: 274293706      TX-dropped: 128           TX-total: 274293834
-     ----------------------------------------------------------------------------
-
-     +++++++++++++++ Accumulated forward statistics for all ports+++++++++++++++
-     RX-packets: 548595696      RX-dropped: 0             RX-total: 548595696
-     TX-packets: 548595568      TX-dropped: 128           TX-total: 548595696
-     ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
-.. note::
-
-   Enabling CONFIG_RTE_TEST_PMD_RECORD_CORE_CYCLES appends "CPU cycles/packet" stats, like:
-
-   CPU cycles/packet=xx.dd (total cycles=xxxx / total RX packets=xxxx) at xxx MHz clock
-
-clear fwd
-~~~~~~~~~
-
-Clear the forwarding engines statistics::
-
-   testpmd> clear fwd stats all
 
 read rxd
 ~~~~~~~~
@@ -486,58 +430,6 @@ Show Tx metadata value set for a specific port::
 
    testpmd> show port (port_id) tx_metadata
 
-show port supported ptypes
-~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Show ptypes supported for a specific port::
-
-   testpmd> show port (port_id) ptypes
-
-set port supported ptypes
-~~~~~~~~~~~~~~~~~~~~~~~~~
-
-set packet types classification for a specific port::
-
-   testpmd> set port (port_id) ptypes_mask (mask)
-
-show port mac addresses info
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Show mac addresses added for a specific port::
-
-   testpmd> show port (port_id) macs
-
-
-show port multicast mac addresses info
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Show multicast mac addresses added for a specific port::
-
-   testpmd> show port (port_id) mcast_macs
-
-show device info
-~~~~~~~~~~~~~~~~
-
-Show general information about devices probed::
-
-   testpmd> show device info (<identifier>|all)
-
-For example:
-
-.. code-block:: console
-
-    testpmd> show device info net_pcap0
-
-    ********************* Infos for device net_pcap0 *********************
-    Bus name: vdev
-    Driver name: net_pcap
-    Devargs: iface=enP2p6s0,phy_mac=1
-    Connect to socket: -1
-
-            Port id: 2
-            MAC address: 1E:37:93:28:04:B8
-            Device name: net_pcap0
-
 dump physmem
 ~~~~~~~~~~~~
 
@@ -552,12 +444,6 @@ Dumps the layout of all memory zones::
 
    testpmd> dump_memzone
 
-dump socket memory
-~~~~~~~~~~~~~~~~~~
-
-Dumps the memory usage of all sockets::
-
-   testpmd> dump_socket_mem
 
 dump struct size
 ~~~~~~~~~~~~~~~~
@@ -593,25 +479,6 @@ dump log types
 Dumps the log level for all the dpdk modules::
 
    testpmd> dump_log_types
-
-show (raw_encap|raw_decap)
-~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Display content of raw_encap/raw_decap buffers in hex::
-
-  testpmd> show <raw_encap|raw_decap> <index>
-  testpmd> show <raw_encap|raw_decap> all
-
-For example::
-
-  testpmd> show raw_encap 6
-
-  index: 6 at [0x1c565b0], len=50
-  00000000: 00 00 00 00 00 00 16 26 36 46 56 66 08 00 45 00 | .......&6FVf..E.
-  00000010: 00 00 00 00 00 00 00 11 00 00 C0 A8 01 06 C0 A8 | ................
-  00000020: 03 06 00 00 00 FA 00 00 00 00 08 00 00 00 00 00 | ................
-  00000030: 06 00                                           | ..
-
 
 Configuration Functions
 -----------------------
@@ -731,40 +598,6 @@ Set the length of each segment of the TX-ONLY packets or length of packet for FL
    testpmd> set txpkts (x[,y]*)
 
 Where x[,y]* represents a CSV list of values, without white space.
-
-set txtimes
-~~~~~~~~~~~
-
-Configure the timing burst pattern for Tx only mode. This command enables
-the packet send scheduling on dynamic timestamp mbuf field and configures
-timing pattern in Tx only mode. In this mode, if scheduling is enabled
-application provides timestamps in the packets being sent. It is possible
-to configure delay (in unspecified device clock units) between bursts
-and between the packets within the burst::
-
-   testpmd> set txtimes (inter),(intra)
-
-where:
-
-* ``inter``  is the delay between the bursts in the device clock units.
-  If ``intra`` is zero, this is the time between the beginnings of the
-  first packets in the neighbour bursts, if ``intra`` is not zero,
-  ``inter`` specifies the time between the beginning of the first packet
-  of the current burst and the beginning of the last packet of the
-  previous burst. If ``inter`` parameter is zero the send scheduling
-  on timestamps is disabled (default).
-
-* ``intra`` is the delay between the packets within the burst specified
-  in the device clock units. The number of packets in the burst is defined
-  by regular burst setting. If ``intra`` parameter is zero no timestamps
-  provided in the packets excepting the first one in the burst.
-
-As the result the bursts of packet will be transmitted with specific
-delays between the packets within the burst and specific delay between
-the bursts. The rte_eth_read_clock() must be supported by the device(s)
-and is supposed to be engaged to get the current device clock value
-and provide the reference for the timestamps. If there is no supported
-rte_eth_read_clock() there will be no send scheduling provided on the port.
 
 set txsplit
 ~~~~~~~~~~~
@@ -906,6 +739,13 @@ Set broadcast mode for a VF from the PF::
 
    testpmd> set vf broadcast (port_id) (vf_id) (on|off)
 
+vlan set strip
+~~~~~~~~~~~~~~
+
+Set the VLAN strip on a port::
+
+   testpmd> vlan set strip (on|off) (port_id)
+
 vlan set stripq
 ~~~~~~~~~~~~~~~
 
@@ -941,11 +781,19 @@ Set VLAN antispoof for a VF from the PF::
 
    testpmd> set vf vlan antispoof (port_id) (vf_id) (on|off)
 
-vlan set (strip|filter|qinq_strip|extend)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Set the VLAN strip/filter/QinQ strip/extend on for a port::
+vlan set filter
+~~~~~~~~~~~~~~~
 
-   testpmd> vlan set (strip|filter|qinq_strip|extend) (on|off) (port_id)
+Set the VLAN filter on a port::
+
+   testpmd> vlan set filter (on|off) (port_id)
+
+vlan set qinq
+~~~~~~~~~~~~~
+
+Set the VLAN QinQ (extended queue in queue) on for a port::
+
+   testpmd> vlan set qinq (on|off) (port_id)
 
 vlan set tpid
 ~~~~~~~~~~~~~
@@ -998,7 +846,7 @@ tunnel_filter add
 Add a tunnel filter on a port::
 
    testpmd> tunnel_filter add (port_id) (outer_mac) (inner_mac) (ip_addr) \
-            (inner_vlan) (vxlan|nvgre|ipingre|vxlan-gpe) (imac-ivlan|imac-ivlan-tenid|\
+            (inner_vlan) (vxlan|nvgre|ipingre) (imac-ivlan|imac-ivlan-tenid|\
             imac-tenid|imac|omac-imac-tenid|oip|iip) (tenant_id) (queue_id)
 
 The available information categories are:
@@ -1008,8 +856,6 @@ The available information categories are:
 * ``nvgre``: Set tunnel type as NVGRE.
 
 * ``ipingre``: Set tunnel type as IP-in-GRE.
-
-* ``vxlan-gpe``: Set tunnel type as VXLAN-GPE
 
 * ``imac-ivlan``: Set filter type as Inner MAC and VLAN.
 
@@ -1038,7 +884,7 @@ tunnel_filter remove
 Remove a tunnel filter on a port::
 
    testpmd> tunnel_filter rm (port_id) (outer_mac) (inner_mac) (ip_addr) \
-            (inner_vlan) (vxlan|nvgre|ipingre|vxlan-gpe) (imac-ivlan|imac-ivlan-tenid|\
+            (inner_vlan) (vxlan|nvgre|ipingre) (imac-ivlan|imac-ivlan-tenid|\
             imac-tenid|imac|omac-imac-tenid|oip|iip) (tenant_id) (queue_id)
 
 rx_vxlan_port add
@@ -1141,7 +987,7 @@ where:
   at first will only keep in DPDK software stored in driver,
   only after "flush on", it commit all configuration to HW.
 
-* ``"off``: is just clean all configuration about queue region just now,
+* ``off``: is just clean all configuration about queue region just now,
   and restore all to DPDK i40e driver default config when start up.
 
 Show all queue region related configuration info on a port::
@@ -1755,7 +1601,7 @@ Enable or disable a per port Rx offloading on all Rx queues of a port::
                   vlan_strip, ipv4_cksum, udp_cksum, tcp_cksum, tcp_lro,
                   qinq_strip, outer_ipv4_cksum, macsec_strip,
                   header_split, vlan_filter, vlan_extend, jumbo_frame,
-                  scatter, timestamp, security, keep_crc, rss_hash
+                  scatter, timestamp, security, keep_crc
 
 This command should be run when the port is stopped, or else it will fail.
 
@@ -1786,7 +1632,8 @@ Enable or disable a per port Tx offloading on all Tx queues of a port::
                   sctp_cksum, tcp_tso, udp_tso, outer_ipv4_cksum,
                   qinq_insert, vxlan_tnl_tso, gre_tnl_tso,
                   ipip_tnl_tso, geneve_tnl_tso, macsec_insert,
-                  mt_lockfree, multi_segs, mbuf_fast_free, security
+                  mt_lockfree, multi_segs, mbuf_fast_free, security,
+                  match_metadata
 
 This command should be run when the port is stopped, or else it will fail.
 
@@ -1818,10 +1665,6 @@ Configure the outer layer to encapsulate a packet inside a VXLAN tunnel::
  set vxlan-with-vlan ip-version (ipv4|ipv6) vni (vni) udp-src (udp-src) \
  udp-dst (udp-dst) ip-src (ip-src) ip-dst (ip-dst) vlan-tci (vlan-tci) \
  eth-src (eth-src) eth-dst (eth-dst)
-
- set vxlan-tos-ttl ip-version (ipv4|ipv6) vni (vni) udp-src (udp-src) \
- udp-dst (udp-dst) ip-tos (ip-tos) ip-ttl (ip-ttl) ip-src (ip-src) \
- ip-dst (ip-dst) eth-src (eth-src) eth-dst (eth-dst)
 
 These commands will set an internal configuration inside testpmd, any following
 flow rule using the action vxlan_encap will use the last configuration set.
@@ -1928,52 +1771,6 @@ These commands will set an internal configuration inside testpmd, any following
 flow rule using the action mplsoudp_decap will use the last configuration set.
 To have a different decapsulation header, one of those commands must be called
 before the flow rule creation.
-
-Config Raw Encapsulation
-~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Configure the raw data to be used when encapsulating a packet by
-rte_flow_action_raw_encap::
-
- set raw_encap {index} {item} [/ {item} [...]] / end_set
-
-There are multiple global buffers for ``raw_encap``, this command will set one
-internal buffer index by ``{index}``.
-If there is no ``{index}`` specified::
-
- set raw_encap {item} [/ {item} [...]] / end_set
-
-the default index ``0`` is used.
-In order to use different encapsulating header, ``index`` must be specified
-during the flow rule creation::
-
- testpmd> flow create 0 egress pattern eth / ipv4 / end actions
-        raw_encap index 2 / end
-
-Otherwise the default index ``0`` is used.
-
-Config Raw Decapsulation
-~~~~~~~~~~~~~~~~~~~~~~~~
-
-Configure the raw data to be used when decapsulating a packet by
-rte_flow_action_raw_decap::
-
- set raw_decap {index} {item} [/ {item} [...]] / end_set
-
-There are multiple global buffers for ``raw_decap``, this command will set
-one internal buffer index by ``{index}``.
-If there is no ``{index}`` specified::
-
- set raw_decap {item} [/ {item} [...]] / end_set
-
-the default index ``0`` is used.
-In order to use different decapsulating header, ``index`` must be specified
-during the flow rule creation::
-
- testpmd> flow create 0 egress pattern eth / ipv4 / end actions
-          raw_encap index 3 / end
-
-Otherwise the default index ``0`` is used.
 
 Port Functions
 --------------
@@ -2200,7 +1997,7 @@ port config - speed
 
 Set the speed and duplex mode for all ports or a specific port::
 
-   testpmd> port config (port_id|all) speed (10|100|1000|10000|25000|40000|50000|100000|200000|auto) \
+   testpmd> port config (port_id|all) speed (10|100|1000|10000|25000|40000|50000|100000|auto) \
             duplex (half|full|auto)
 
 port config - queues/descriptors
@@ -2221,15 +2018,6 @@ Set the maximum packet length::
 
 This is equivalent to the ``--max-pkt-len`` command-line option.
 
-port config - max-lro-pkt-size
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Set the maximum LRO aggregated packet size::
-
-   testpmd> port config all max-lro-pkt-size (value)
-
-This is equivalent to the ``--max-lro-pkt-size`` command-line option.
-
 port config - Drop Packets
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -2246,14 +2034,12 @@ port config - RSS
 
 Set the RSS (Receive Side Scaling) mode on or off::
 
-   testpmd> port config all rss (all|default|eth|vlan|ip|tcp|udp|sctp|ether|port|vxlan|geneve|nvgre|vxlan-gpe|l2tpv3|esp|ah|pfcp|none)
+   testpmd> port config all rss (all|default|ip|tcp|udp|sctp|ether|port|vxlan|geneve|nvgre|none)
 
 RSS is on by default.
 
-The ``all`` option is equivalent to eth|vlan|ip|tcp|udp|sctp|ether|l2tpv3|esp|ah|pfcp.
-
+The ``all`` option is equivalent to ip|tcp|udp|sctp|ether.
 The ``default`` option enables all supported RSS types reported by device info.
-
 The ``none`` option is equivalent to the ``--disable-rss`` command-line option.
 
 port config - RSS Reta
@@ -2362,7 +2148,7 @@ port config udp_tunnel_port
 
 Add/remove UDP tunnel port for VXLAN/GENEVE tunneling protocols::
 
-    testpmd> port config (port_id) udp_tunnel_port add|rm vxlan|geneve|vxlan-gpe (udp_port)
+    testpmd> port config (port_id) udp_tunnel_port add|rm vxlan|geneve (udp_port)
 
 port config tx_metadata
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -2371,16 +2157,6 @@ Set Tx metadata value per port.
 testpmd will add this value to any Tx packet sent from this port::
 
    testpmd> port config (port_id) tx_metadata (value)
-
-port config dynf
-~~~~~~~~~~~~~~~~
-
-Set/clear dynamic flag per port.
-testpmd will register this flag in the mbuf (same registration
-for both Tx and Rx). Then set/clear this flag for each Tx
-packet sent from this port. The set bit only works for Tx packet::
-
-   testpmd> port config (port_id) dynf (name) (set|clear)
 
 port config mtu
 ~~~~~~~~~~~~~~~
@@ -2401,47 +2177,6 @@ hash of input [IP] packets received on port::
                      ipv6-other|l2-payload|ipv6-ex|ipv6-tcp-ex|\
                      ipv6-udp-ex <string of hex digits \
                      (variable length, NIC dependent)>)
-
-Device Functions
-----------------
-
-The following sections show functions for device operations.
-
-device detach
-~~~~~~~~~~~~~
-
-Detach a device specified by pci address or virtual device args::
-
-   testpmd> device detach (identifier)
-
-Before detaching a device associated with ports, the ports should be stopped and closed.
-
-For example, to detach a pci device whose address is 0002:03:00.0.
-
-.. code-block:: console
-
-    testpmd> device detach 0002:03:00.0
-    Removing a device...
-    Port 1 is now closed
-    EAL: Releasing pci mapped resource for 0002:03:00.0
-    EAL: Calling pci_unmap_resource for 0002:03:00.0 at 0x218a050000
-    EAL: Calling pci_unmap_resource for 0002:03:00.0 at 0x218c050000
-    Device 0002:03:00.0 is detached
-    Now total ports is 1
-
-For example, to detach a port created by pcap PMD.
-
-.. code-block:: console
-
-    testpmd> device detach net_pcap0
-    Removing a device...
-    Port 0 is now closed
-    Device net_pcap0 is detached
-    Now total ports is 0
-    Done
-
-In this case, identifier is ``net_pcap0``.
-This identifier format is the same as ``--vdev`` format of DPDK applications.
 
 Link Bonding Functions
 ----------------------
@@ -3153,6 +2888,13 @@ where:
 * ``red`` enable 1, disable 0 marking IP ecn for yellow marked packets with ecn of 2'b01  or 2'b10
   to ecn of 2'b11 when IP is caring TCP or SCTP
 
+Set port traffic management default hierarchy (softnic forwarding mode)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+set the traffic management default hierarchy on the port::
+
+   testpmd> set port tm hierarchy default (port_id)
+
 Filter Functions
 ----------------
 
@@ -3530,7 +3272,7 @@ set_hash_global_config
 
 Set the global configurations of hash filters::
 
-   set_hash_global_config (port_id) (toeplitz|simple_xor|symmetric_toeplitz|default) \
+   set_hash_global_config (port_id) (toeplitz|simple_xor|default) \
    (ipv4|ipv4-frag|ipv4-tcp|ipv4-udp|ipv4-sctp|ipv4-other|ipv6|ipv6-frag| \
    ipv6-tcp|ipv6-udp|ipv6-sctp|ipv6-other|l2_payload|<flow_id>) \
    (enable|disable)
@@ -3651,14 +3393,6 @@ following sections.
 - Restrict ingress traffic to the defined flow rules::
 
    flow isolate {port_id} {boolean}
-
-- Dump internal representation information of all flows in hardware::
-
-   flow dump {port_id} {output_file}
-
-- List and destroy aged flow rules::
-
-   flow aged {port_id} [destroy]
 
 Validating flow rules
 ~~~~~~~~~~~~~~~~~~~~~
@@ -3959,10 +3693,6 @@ This section lists supported pattern items and their attributes, if any.
 
   - ``protocol {unsigned}``: protocol type.
 
-- ``gre_key``: match GRE optional key field.
-
-  - ``value {unsigned}``: key value.
-
 - ``fuzzy``: fuzzy pattern match, expect faster than default.
 
   - ``thresh {unsigned}``: accuracy threshold.
@@ -4021,32 +3751,6 @@ This section lists supported pattern items and their attributes, if any.
 - ``meta``: match application specific metadata.
 
   - ``data {unsigned}``: metadata value.
-
-- ``gtp_psc``: match GTP PDU extension header with type 0x85.
-
-  - ``pdu_type {unsigned}``: PDU type.
-  - ``qfi {unsigned}``: QoS flow identifier.
-
-- ``pppoes``, ``pppoed``: match PPPoE header.
-
-  - ``session_id {unsigned}``: session identifier.
-
-- ``pppoe_proto_id``: match PPPoE session protocol identifier.
-
-  - ``proto_id {unsigned}``: PPP protocol identifier.
-
-- ``l2tpv3oip``: match L2TPv3 over IP header.
-
-  - ``session_id {unsigned}``: L2TPv3 over IP session identifier.
-
-- ``ah``: match AH header.
-
-  - ``spi {unsigned}``: security parameters index.
-
-- ``pfcp``: match PFCP header.
-
-  - ``s_field {unsigned}``: S field.
-  - ``seid {unsigned}``: session endpoint identifier.
 
 Actions list
 ^^^^^^^^^^^^
@@ -4291,30 +3995,6 @@ This section lists supported actions and their attributes, if any.
 
   - ``mac_addr {MAC-48}``: new destination MAC address
 
-- ``inc_tcp_seq``: Increase sequence number in the outermost TCP header.
-
-  - ``value {unsigned}``: Value to increase TCP sequence number by.
-
-- ``dec_tcp_seq``: Decrease sequence number in the outermost TCP header.
-
-  - ``value {unsigned}``: Value to decrease TCP sequence number by.
-
-- ``inc_tcp_ack``: Increase acknowledgment number in the outermost TCP header.
-
-  - ``value {unsigned}``: Value to increase TCP acknowledgment number by.
-
-- ``dec_tcp_ack``: Decrease acknowledgment number in the outermost TCP header.
-
-  - ``value {unsigned}``: Value to decrease TCP acknowledgment number by.
-
-- ``set_ipv4_dscp``: Set IPv4 DSCP value with specified value
-
-  - ``dscp_value {unsigned}``: The new DSCP value to be set
-
-- ``set_ipv6_dscp``: Set IPv6 DSCP value with specified value
-
-  - ``dscp_value {unsigned}``: The new DSCP value to be set
-
 Destroying flow rules
 ~~~~~~~~~~~~~~~~~~~~~
 
@@ -4531,87 +4211,13 @@ Disabling isolated mode::
  Ingress traffic on port 0 is not restricted anymore to the defined flow rules
  testpmd>
 
-Dumping HW internal information
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-``flow dump`` dumps the hardware's internal representation information of
-all flows. It is bound to ``rte_flow_dev_dump()``::
-
-   flow dump {port_id} {output_file}
-
-If successful, it will show::
-
-   Flow dump finished
-
-Otherwise, it will complain error occurred::
-
-   Caught error type [...] ([...]): [...]
-
-Listing and destroying aged flow rules
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-``flow aged`` simply lists aged flow rules be get from api ``rte_flow_get_aged_flows``,
-and ``destroy`` parameter can be used to destroy those flow rules in PMD.
-
-   flow aged {port_id} [destroy]
-
-Listing current aged flow rules::
-
-   testpmd> flow aged 0
-   Port 0 total aged flows: 0
-   testpmd> flow create 0 ingress pattern eth / ipv4 src is 2.2.2.14 / end
-      actions age timeout 5 / queue index 0 /  end
-   Flow rule #0 created
-   testpmd> flow create 0 ingress pattern eth / ipv4 src is 2.2.2.15 / end
-      actions age timeout 4 / queue index 0 /  end
-   Flow rule #1 created
-   testpmd> flow create 0 ingress pattern eth / ipv4 src is 2.2.2.16 / end
-      actions age timeout 2 / queue index 0 /  end
-   Flow rule #2 created
-   testpmd> flow create 0 ingress pattern eth / ipv4 src is 2.2.2.17 / end
-      actions age timeout 3 / queue index 0 /  end
-   Flow rule #3 created
-
-
-Aged Rules are simply list as command ``flow list {port_id}``, but strip the detail rule
-information, all the aged flows are sorted by the longest timeout time. For example, if
-those rules be configured in the same time, ID 2 will be the first aged out rule, the next
-will be ID 3, ID 1, ID 0::
-
-   testpmd> flow aged 0
-   Port 0 total aged flows: 4
-   ID      Group   Prio    Attr
-   2       0       0       i--
-   3       0       0       i--
-   1       0       0       i--
-   0       0       0       i--
-
-If attach ``destroy`` parameter, the command will destroy all the list aged flow rules.
-
-   testpmd> flow aged 0 destroy
-   Port 0 total aged flows: 4
-   ID      Group   Prio    Attr
-   2       0       0       i--
-   3       0       0       i--
-   1       0       0       i--
-   0       0       0       i--
-
-   Flow rule #2 destroyed
-   Flow rule #3 destroyed
-   Flow rule #1 destroyed
-   Flow rule #0 destroyed
-   4 flows be destroyed
-   testpmd> flow aged 0
-   Port 0 total aged flows: 0
-
-
 Sample QinQ flow rules
 ~~~~~~~~~~~~~~~~~~~~~~
 
 Before creating QinQ rule(s) the following commands should be issued to enable QinQ::
 
    testpmd> port stop 0
-   testpmd> vlan set qinq_strip on 0
+   testpmd> vlan set qinq on 0
 
 The above command sets the inner and outer TPID's to 0x8100.
 
@@ -4673,12 +4279,6 @@ IPv4 VXLAN outer header::
  testpmd> flow create 0 ingress pattern end actions vxlan_encap /
          queue index 0 / end
 
- testpmd> set vxlan-tos-ttl ip-version ipv4 vni 4 udp-src 4 udp-dst 4 ip-tos 0
-         ip-ttl 255 ip-src 127.0.0.1 ip-dst 128.0.0.1 eth-src 11:11:11:11:11:11
-         eth-dst 22:22:22:22:22:22
- testpmd> flow create 0 ingress pattern end actions vxlan_encap /
-         queue index 0 / end
-
 IPv6 VXLAN outer header::
 
  testpmd> set vxlan ip-version ipv6 vni 4 udp-src 4 udp-dst 4 ip-src ::1
@@ -4688,12 +4288,6 @@ IPv6 VXLAN outer header::
 
  testpmd> set vxlan-with-vlan ip-version ipv6 vni 4 udp-src 4 udp-dst 4
          ip-src ::1 ip-dst ::2222 vlan-tci 34 eth-src 11:11:11:11:11:11
-         eth-dst 22:22:22:22:22:22
- testpmd> flow create 0 ingress pattern end actions vxlan_encap /
-         queue index 0 / end
-
- testpmd> set vxlan-tos-ttl ip-version ipv6 vni 4 udp-src 4 udp-dst 4
-         ip-tos 0 ip-ttl 255 ::1 ip-dst ::2222 eth-src 11:11:11:11:11:11
          eth-dst 22:22:22:22:22:22
  testpmd> flow create 0 ingress pattern end actions vxlan_encap /
          queue index 0 / end
@@ -4903,73 +4497,6 @@ IPv6 MPLSoUDP with VLAN outer header::
  testpmd> flow create 0 ingress pattern eth / vlan / ipv6 / udp / mpls / end
         actions mplsoudp_decap / l2_encap / end
 
-Sample Raw encapsulation rule
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Raw encapsulation configuration can be set by the following commands
-
-Eecapsulating VxLAN::
-
- testpmd> set raw_encap 4 eth src is 10:11:22:33:44:55 / vlan tci is 1
-        inner_type is 0x0800 / ipv4 / udp dst is 4789 / vxlan vni
-        is 2 / end_set
- testpmd> flow create 0 egress pattern eth / ipv4 / end actions
-        raw_encap index 4 / end
-
-Sample Raw decapsulation rule
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Raw decapsulation configuration can be set by the following commands
-
-Decapsulating VxLAN::
-
- testpmd> set raw_decap eth / ipv4 / udp / vxlan / end_set
- testpmd> flow create 0 ingress pattern eth / ipv4 / udp / vxlan / eth / ipv4 /
-        end actions raw_decap / queue index 0 / end
-
-Sample ESP rules
-~~~~~~~~~~~~~~~~
-
-ESP rules can be created by the following commands::
-
- testpmd> flow create 0 ingress pattern eth / ipv4 / esp spi is 1 / end actions
-        queue index 3 / end
- testpmd> flow create 0 ingress pattern eth / ipv4 / udp / esp spi is 1 / end
-        actions queue index 3 / end
- testpmd> flow create 0 ingress pattern eth / ipv6 / esp spi is 1 / end actions
-        queue index 3 / end
- testpmd> flow create 0 ingress pattern eth / ipv6 / udp / esp spi is 1 / end
-        actions queue index 3 / end
-
-Sample AH rules
-~~~~~~~~~~~~~~~~
-
-AH rules can be created by the following commands::
-
- testpmd> flow create 0 ingress pattern eth / ipv4 / ah spi is 1 / end actions
-        queue index 3 / end
- testpmd> flow create 0 ingress pattern eth / ipv4 / udp / ah spi is 1 / end
-        actions queue index 3 / end
- testpmd> flow create 0 ingress pattern eth / ipv6 / ah spi is 1 / end actions
-        queue index 3 / end
- testpmd> flow create 0 ingress pattern eth / ipv6 / udp / ah spi is 1 / end
-        actions queue index 3 / end
-
-Sample PFCP rules
-~~~~~~~~~~~~~~~~~
-
-PFCP rules can be created by the following commands(s_field need to be 1
-if seid is set)::
-
- testpmd> flow create 0 ingress pattern eth / ipv4 / pfcp s_field is 0 / end
-        actions queue index 3 / end
- testpmd> flow create 0 ingress pattern eth / ipv4 / pfcp s_field is 1
-        seid is 1 / end actions queue index 3 / end
- testpmd> flow create 0 ingress pattern eth / ipv6 / pfcp s_field is 0 / end
-        actions queue index 3 / end
- testpmd> flow create 0 ingress pattern eth / ipv6 / pfcp s_field is 1
-        seid is 1 / end actions queue index 3 / end
-
 BPF Functions
 --------------
 
@@ -4998,20 +4525,20 @@ For example:
 
 .. code-block:: console
 
-   cd examples/bpf
+   cd test/bpf
    clang -O2 -target bpf -c t1.c
 
 Then to load (and JIT compile) t1.o at RX queue 0, port 1:
 
 .. code-block:: console
 
-   testpmd> bpf-load rx 1 0 J ./dpdk.org/examples/bpf/t1.o
+   testpmd> bpf-load rx 1 0 J ./dpdk.org/test/bpf/t1.o
 
 To load (not JITed) t1.o at TX queue 0, port 0:
 
 .. code-block:: console
 
-   testpmd> bpf-load tx 0 0 - ./dpdk.org/examples/bpf/t1.o
+   testpmd> bpf-load tx 0 0 - ./dpdk.org/test/bpf/t1.o
 
 bpf-unload
 ~~~~~~~~~~
@@ -5024,4 +4551,4 @@ For example to unload BPF filter from TX queue 0, port 0:
 
 .. code-block:: console
 
-   testpmd> bpf-unload tx 0 0
+   testpmd> bpf-load tx 0 0 - ./dpdk.org/test/bpf/t1.o

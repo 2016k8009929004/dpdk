@@ -3,7 +3,7 @@
  * All rights reserved.
  */
 
-#include "base/common.h"
+#include "common.h"
 #include "clip_tbl.h"
 
 /**

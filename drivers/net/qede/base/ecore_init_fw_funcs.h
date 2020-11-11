@@ -6,13 +6,7 @@
 
 #ifndef _INIT_FW_FUNCS_H
 #define _INIT_FW_FUNCS_H
-#include "ecore_hsi_common.h"
-#include "ecore_hsi_eth.h"
-
-/* Returns the VOQ based on port and TC */
-#define VOQ(port, tc, max_phys_tcs_per_port) \
-	((tc) == PURE_LB_TC ? NUM_OF_PHYS_TCS * MAX_NUM_PORTS_BB + (port) : \
-	 (port) * (max_phys_tcs_per_port) + (tc))
+/* Forward declarations */
 
 struct init_qm_pq_params;
 
@@ -22,7 +16,6 @@ struct init_qm_pq_params;
  * Returns the required host memory size in 4KB units.
  * Must be called before all QM init HSI functions.
  *
- * @param p_hwfn -		HW device data
  * @param num_pf_cids - number of connections used by this PF
  * @param num_vf_cids -	number of connections used by VFs of this PF
  * @param num_tids -	number of tasks used by this PF
@@ -31,8 +24,7 @@ struct init_qm_pq_params;
  *
  * @return The required host memory size in 4KB units.
  */
-u32 ecore_qm_pf_mem_size(struct ecore_hwfn *p_hwfn,
-			 u32 num_pf_cids,
+u32 ecore_qm_pf_mem_size(u32 num_pf_cids,
 						 u32 num_vf_cids,
 						 u32 num_tids,
 						 u16 num_pf_pqs,
@@ -47,24 +39,20 @@ u32 ecore_qm_pf_mem_size(struct ecore_hwfn *p_hwfn,
  * @param max_phys_tcs_per_port	- max number of physical TCs per port in HW
  * @param pf_rl_en		- enable per-PF rate limiters
  * @param pf_wfq_en		- enable per-PF WFQ
- * @param global_rl_en -	  enable global rate limiters
+ * @param vport_rl_en		- enable per-VPORT rate limiters
  * @param vport_wfq_en		- enable per-VPORT WFQ
- * @param port_params -		  array with parameters for each port.
- * @param global_rl_params -	  array with parameters for each global RL.
- *				  If OSAL_NULL, global RLs are not configured.
+ * @param port_params - array of size MAX_NUM_PORTS with params for each port
  *
  * @return 0 on success, -1 on error.
  */
 int ecore_qm_common_rt_init(struct ecore_hwfn *p_hwfn,
-			    u8 max_ports_per_engine,
-			    u8 max_phys_tcs_per_port,
-			    bool pf_rl_en,
-			    bool pf_wfq_en,
-			    bool global_rl_en,
-			    bool vport_wfq_en,
-			  struct init_qm_port_params port_params[MAX_NUM_PORTS],
-			  struct init_qm_global_rl_params
-				 global_rl_params[COMMON_MAX_QM_GLOBAL_RLS]);
+			 u8 max_ports_per_engine,
+			 u8 max_phys_tcs_per_port,
+			 bool pf_rl_en,
+			 bool pf_wfq_en,
+			 bool vport_rl_en,
+			 bool vport_wfq_en,
+			 struct init_qm_port_params port_params[MAX_NUM_PORTS]);
 
 /**
  * @brief ecore_qm_pf_rt_init  Prepare QM runtime init values for the PF phase
@@ -88,6 +76,7 @@ int ecore_qm_common_rt_init(struct ecore_hwfn *p_hwfn,
  *		   be 0. otherwise, the weight must be non-zero.
  * @param pf_rl - rate limit in Mb/sec units. a value of 0 means don't
  *                configure. ignored if PF RL is globally disabled.
+ * @param link_speed -		  link speed in Mbps.
  * @param pq_params - array of size (num_pf_pqs+num_vf_pqs) with parameters for
  *                    each Tx PQ associated with the specified PF.
  * @param vport_params - array of size num_vports with parameters for each
@@ -106,10 +95,11 @@ int ecore_qm_pf_rt_init(struct ecore_hwfn *p_hwfn,
 			u16 start_pq,
 			u16 num_pf_pqs,
 			u16 num_vf_pqs,
-			u16 start_vport,
-			u16 num_vports,
+			u8 start_vport,
+			u8 num_vports,
 			u16 pf_wfq,
 			u32 pf_rl,
+			u32 link_speed,
 			struct init_qm_pq_params *pq_params,
 			struct init_qm_vport_params *vport_params);
 
@@ -151,30 +141,14 @@ int ecore_init_pf_rl(struct ecore_hwfn *p_hwfn,
  * @param first_tx_pq_id- An array containing the first Tx PQ ID associated
  *                        with the VPORT for each TC. This array is filled by
  *                        ecore_qm_pf_rt_init
- * @param wfq -		   WFQ weight. Must be non-zero.
+ * @param vport_wfq		- WFQ weight. Must be non-zero.
  *
  * @return 0 on success, -1 on error.
  */
 int ecore_init_vport_wfq(struct ecore_hwfn *p_hwfn,
 						 struct ecore_ptt *p_ptt,
 						 u16 first_tx_pq_id[NUM_OF_TCS],
-			 u16 wfq);
-
-/**
- * @brief ecore_init_global_rl - Initializes the rate limit of the specified
- * rate limiter.
- *
- * @param p_hwfn -		HW device data
- * @param p_ptt -		ptt window used for writing the registers
- * @param rl_id -	RL ID
- * @param rate_limit -	rate limit in Mb/sec units
- *
- * @return 0 on success, -1 on error.
- */
-int ecore_init_global_rl(struct ecore_hwfn *p_hwfn,
-			 struct ecore_ptt *p_ptt,
-			 u16 rl_id,
-			 u32 rate_limit);
+						 u16 vport_wfq);
 
 /**
  * @brief ecore_init_vport_rl - Initializes the rate limit of the specified
@@ -309,9 +283,8 @@ void ecore_set_port_mf_ovlan_eth_type(struct ecore_hwfn *p_hwfn,
 
 /**
  * @brief ecore_set_vxlan_dest_port - initializes vxlan tunnel destination udp
- * port.
+ *                                    port
  *
- * @param p_hwfn -       HW device data
  * @param p_ptt     - ptt window used for writing the registers.
  * @param dest_port - vxlan destination udp port.
  */
@@ -322,7 +295,6 @@ void ecore_set_vxlan_dest_port(struct ecore_hwfn *p_hwfn,
 /**
  * @brief ecore_set_vxlan_enable - enable or disable VXLAN tunnel in HW
  *
- * @param p_hwfn -      HW device data
  * @param p_ptt		- ptt window used for writing the registers.
  * @param vxlan_enable	- vxlan enable flag.
  */
@@ -333,7 +305,6 @@ void ecore_set_vxlan_enable(struct ecore_hwfn *p_hwfn,
 /**
  * @brief ecore_set_gre_enable - enable or disable GRE tunnel in HW
  *
- * @param p_hwfn -        HW device data
  * @param p_ptt          - ptt window used for writing the registers.
  * @param eth_gre_enable - eth GRE enable enable flag.
  * @param ip_gre_enable  - IP GRE enable enable flag.
@@ -347,7 +318,6 @@ void ecore_set_gre_enable(struct ecore_hwfn *p_hwfn,
  * @brief ecore_set_geneve_dest_port - initializes geneve tunnel destination
  *                                     udp port
  *
- * @param p_hwfn -       HW device data
  * @param p_ptt     - ptt window used for writing the registers.
  * @param dest_port - geneve destination udp port.
  */
@@ -356,9 +326,8 @@ void ecore_set_geneve_dest_port(struct ecore_hwfn *p_hwfn,
 				u16 dest_port);
 
 /**
- * @brief ecore_set_geneve_enable - enable or disable GRE tunnel in HW
+ * @brief ecore_set_gre_enable - enable or disable GRE tunnel in HW
  *
- * @param p_hwfn -         HW device data
  * @param p_ptt             - ptt window used for writing the registers.
  * @param eth_geneve_enable - eth GENEVE enable enable flag.
  * @param ip_geneve_enable  - IP GENEVE enable enable flag.
@@ -378,7 +347,7 @@ void ecore_set_gft_event_id_cm_hdr(struct ecore_hwfn *p_hwfn,
 				   struct ecore_ptt *p_ptt);
 
 /**
- * @brief ecore_gft_disable - Disable GFT
+ * @brief ecore_gft_disable - Disable and GFT
  *
  * @param p_hwfn -   HW device data
  * @param p_ptt -   ptt window used for writing the registers.
@@ -391,7 +360,6 @@ void ecore_gft_disable(struct ecore_hwfn *p_hwfn,
 /**
  * @brief ecore_gft_config - Enable and configure HW for GFT
 *
- * @param p_hwfn -   HW device data
 * @param p_ptt	- ptt window used for writing the registers.
  * @param pf_id - pf on which to enable GFT.
 * @param tcp	- set profile tcp packets.
@@ -414,13 +382,12 @@ void ecore_gft_config(struct ecore_hwfn *p_hwfn,
 * @brief ecore_config_vf_zone_size_mode - Configure VF zone size mode. Must be
 *                                         used before first ETH queue started.
 *
- * @param p_hwfn -      HW device data
+*
 * @param p_ptt        -  ptt window used for writing the registers. Don't care
- *           if runtime_init used.
+*                        if runtime_init used
 * @param mode         -  VF zone size mode. Use enum vf_zone_size_mode.
- * @param runtime_init - Set 1 to init runtime registers in engine phase.
- *           Set 0 if VF zone size mode configured after engine
- *           phase.
+* @param runtime_init -  Set 1 to init runtime registers in engine phase. Set 0
+*                        if VF zone size mode configured after engine phase.
 */
 void ecore_config_vf_zone_size_mode(struct ecore_hwfn *p_hwfn, struct ecore_ptt
 				    *p_ptt, u16 mode, bool runtime_init);
@@ -429,7 +396,6 @@ void ecore_config_vf_zone_size_mode(struct ecore_hwfn *p_hwfn, struct ecore_ptt
  * @brief ecore_get_mstorm_queue_stat_offset - Get mstorm statistics offset by
  * VF zone size mode.
 *
- * @param p_hwfn -         HW device data
 * @param stat_cnt_id         -  statistic counter id
 * @param vf_zone_size_mode   -  VF zone size mode. Use enum vf_zone_size_mode.
 */
@@ -440,7 +406,6 @@ u32 ecore_get_mstorm_queue_stat_offset(struct ecore_hwfn *p_hwfn,
  * @brief ecore_get_mstorm_eth_vf_prods_offset - VF producer offset by VF zone
  * size mode.
 *
- * @param p_hwfn -           HW device data
 * @param vf_id               -  vf id.
 * @param vf_queue_id         -  per VF rx queue id.
 * @param vf_zone_size_mode   -  vf zone size mode. Use enum vf_zone_size_mode.
@@ -451,7 +416,6 @@ u32 ecore_get_mstorm_eth_vf_prods_offset(struct ecore_hwfn *p_hwfn, u8 vf_id, u8
  * @brief ecore_enable_context_validation - Enable and configure context
  *                                          validation.
  *
- * @param p_hwfn -   HW device data
  * @param p_ptt - ptt window used for writing the registers.
  */
 void ecore_enable_context_validation(struct ecore_hwfn *p_hwfn,
@@ -460,14 +424,12 @@ void ecore_enable_context_validation(struct ecore_hwfn *p_hwfn,
  * @brief ecore_calc_session_ctx_validation - Calcualte validation byte for
  * session context.
  *
- * @param p_hwfn -		HW device data
  * @param p_ctx_mem -	pointer to context memory.
  * @param ctx_size -	context size.
  * @param ctx_type -	context type.
  * @param cid -		context cid.
  */
-void ecore_calc_session_ctx_validation(struct ecore_hwfn *p_hwfn,
-				       void *p_ctx_mem,
+void ecore_calc_session_ctx_validation(void *p_ctx_mem,
 				       u16 ctx_size,
 				       u8 ctx_type,
 				       u32 cid);
@@ -476,14 +438,12 @@ void ecore_calc_session_ctx_validation(struct ecore_hwfn *p_hwfn,
  * @brief ecore_calc_task_ctx_validation - Calcualte validation byte for task
  * context.
  *
- * @param p_hwfn -		HW device data
  * @param p_ctx_mem -	pointer to context memory.
  * @param ctx_size -	context size.
  * @param ctx_type -	context type.
  * @param tid -		    context tid.
  */
-void ecore_calc_task_ctx_validation(struct ecore_hwfn *p_hwfn,
-				    void *p_ctx_mem,
+void ecore_calc_task_ctx_validation(void *p_ctx_mem,
 				    u16 ctx_size,
 				    u8 ctx_type,
 				    u32 tid);
@@ -497,22 +457,18 @@ void ecore_calc_task_ctx_validation(struct ecore_hwfn *p_hwfn,
  * @param ctx_size -  size to initialzie.
  * @param ctx_type -  context type.
  */
-void ecore_memset_session_ctx(struct ecore_hwfn *p_hwfn,
-			      void *p_ctx_mem,
+void ecore_memset_session_ctx(void *p_ctx_mem,
 			      u32 ctx_size,
 			      u8 ctx_type);
-
 /**
  * @brief ecore_memset_task_ctx - Memset task context to 0 while preserving
  * validation bytes.
  *
- * @param p_hwfn -		HW device data
  * @param p_ctx_mem - pointer to context memory.
  * @param ctx_size -  size to initialzie.
  * @param ctx_type -  context type.
  */
-void ecore_memset_task_ctx(struct ecore_hwfn *p_hwfn,
-			   void *p_ctx_mem,
+void ecore_memset_task_ctx(void *p_ctx_mem,
 			   u32 ctx_size,
 			   u8 ctx_type);
 
@@ -546,40 +502,5 @@ void ecore_set_rdma_error_level(struct ecore_hwfn *p_hwfn,
 				struct ecore_ptt *p_ptt,
 				u8 assert_level[NUM_STORMS]);
 
-/**
- * @brief ecore_fw_overlay_mem_alloc - Allocates and fills the FW overlay memory
- *
- * @param p_hwfn -                     HW device data
- * @param fw_overlay_in_buf -  the input FW overlay buffer.
- * @param buf_size -           the size of the input FW overlay buffer in bytes.
- *                             must be aligned to dwords.
- * @param fw_overlay_out_mem - OUT: a pointer to the allocated overlays memory.
- *
- * @return a pointer to the allocated overlays memory, or OSAL_NULL in case of
- *  failures.
- */
-struct phys_mem_desc *ecore_fw_overlay_mem_alloc(struct ecore_hwfn *p_hwfn,
-					 const u32 *const fw_overlay_in_buf,
-					 u32 buf_size_in_bytes);
-
-/**
- * @brief ecore_fw_overlay_init_ram - Initializes the FW overlay RAM.
- *
- * @param p_hwfn -                    HW device data.
- * @param p_ptt -                     ptt window used for writing the registers.
- * @param fw_overlay_mem -       the allocated FW overlay memory.
- */
-void ecore_fw_overlay_init_ram(struct ecore_hwfn *p_hwfn,
-			       struct ecore_ptt *p_ptt,
-			       struct phys_mem_desc *fw_overlay_mem);
-
-/**
- * @brief ecore_fw_overlay_mem_free - Frees the FW overlay memory.
- *
- * @param p_hwfn -                    HW device data.
- * @param fw_overlay_mem -       the allocated FW overlay memory to free.
- */
-void ecore_fw_overlay_mem_free(struct ecore_hwfn *p_hwfn,
-			       struct phys_mem_desc *fw_overlay_mem);
 
 #endif

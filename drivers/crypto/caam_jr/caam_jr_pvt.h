@@ -5,8 +5,7 @@
 #ifndef CAAM_JR_PVT_H
 #define CAAM_JR_PVT_H
 
-#include <desc/ipsec.h>
-#include <dpaax_iova_table.h>
+#include <hw/desc/ipsec.h>
 
 /* NXP CAAM JR PMD device name */
 
@@ -256,11 +255,6 @@ caam_jr_mem_vtop(void *vaddr)
 static inline void *
 caam_jr_dma_ptov(rte_iova_t paddr)
 {
-	void *va;
-	va = dpaax_iova_table_get_va(paddr);
-	if (likely(va != NULL))
-		return va;
-
 	return rte_mem_iova2virt(paddr);
 }
 

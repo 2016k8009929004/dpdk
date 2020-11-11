@@ -27,6 +27,7 @@
 #include <rte_bus.h>
 #include <rte_bus_vdev.h>
 #include <rte_common.h>
+#include <rte_config.h>
 #include <rte_dev.h>
 #include <rte_errno.h>
 #include <rte_ethdev.h>
@@ -48,14 +49,15 @@
 #define NETVSC_CLASS_ID "{f8615163-df3e-46c5-913f-f2d2f965ed0e}"
 #define NETVSC_MAX_ROUTE_LINE_SIZE 300
 
-RTE_LOG_REGISTER(vdev_netvsc_logtype, pmd.net.vdev_netvsc, NOTICE);
-
 #define DRV_LOG(level, ...) \
 	rte_log(RTE_LOG_ ## level, \
 		vdev_netvsc_logtype, \
 		RTE_FMT(VDEV_NETVSC_DRIVER_NAME ": " \
 			RTE_FMT_HEAD(__VA_ARGS__,) "\n", \
 		RTE_FMT_TAIL(__VA_ARGS__,)))
+
+/** Driver-specific log messages type. */
+static int vdev_netvsc_logtype;
 
 /** Context structure for a vdev_netvsc instance. */
 struct vdev_netvsc_ctx {
@@ -66,7 +68,7 @@ struct vdev_netvsc_ctx {
 	char devargs[256];		   /**< Fail-safe device arguments. */
 	char if_name[IF_NAMESIZE];	   /**< NetVSC netdevice name. */
 	unsigned int if_index;		   /**< NetVSC netdevice index. */
-	struct rte_ether_addr if_addr;	   /**< NetVSC MAC address. */
+	struct ether_addr if_addr;	   /**< NetVSC MAC address. */
 	int pipe[2];			   /**< Fail-safe communication pipe. */
 	char yield[256];		   /**< PCI sub-device arguments. */
 };
@@ -155,7 +157,7 @@ vdev_netvsc_iface_is_netvsc(const struct if_nameindex *iface)
  */
 static int
 vdev_netvsc_foreach_iface(int (*func)(const struct if_nameindex *iface,
-				      const struct rte_ether_addr *eth_addr,
+				      const struct ether_addr *eth_addr,
 				      va_list ap), int is_netvsc, ...)
 {
 	struct if_nameindex *iface = if_nameindex();
@@ -176,7 +178,7 @@ vdev_netvsc_foreach_iface(int (*func)(const struct if_nameindex *iface,
 	for (i = 0; iface[i].if_name; ++i) {
 		int is_netvsc_ret;
 		struct ifreq req;
-		struct rte_ether_addr eth_addr;
+		struct ether_addr eth_addr;
 		va_list ap;
 
 		is_netvsc_ret = vdev_netvsc_iface_is_netvsc(&iface[i]) ? 1 : 0;
@@ -189,8 +191,11 @@ vdev_netvsc_foreach_iface(int (*func)(const struct if_nameindex *iface,
 					 req.ifr_name, rte_strerror(errno));
 			continue;
 		}
-		if (req.ifr_hwaddr.sa_family != ARPHRD_ETHER)
+		if (req.ifr_hwaddr.sa_family != ARPHRD_ETHER) {
+			DRV_LOG(DEBUG, "interface %s is non-ethernet device",
+				req.ifr_name);
 			continue;
+		}
 		memcpy(eth_addr.addr_bytes, req.ifr_hwaddr.sa_data,
 		       RTE_DIM(eth_addr.addr_bytes));
 		va_start(ap, is_netvsc);
@@ -366,7 +371,7 @@ vdev_netvsc_sysfs_readlink(char *buf, size_t size, const char *if_name,
  */
 static int
 vdev_netvsc_device_probe(const struct if_nameindex *iface,
-		    const struct rte_ether_addr *eth_addr,
+		    const struct ether_addr *eth_addr,
 		    va_list ap)
 {
 	struct vdev_netvsc_ctx *ctx = va_arg(ap, struct vdev_netvsc_ctx *);
@@ -385,7 +390,7 @@ vdev_netvsc_device_probe(const struct if_nameindex *iface,
 		strlcpy(ctx->if_name, iface->if_name, sizeof(ctx->if_name));
 		return 0;
 	}
-	if (!rte_is_same_ether_addr(eth_addr, &ctx->if_addr))
+	if (!is_same_ether_addr(eth_addr, &ctx->if_addr))
 		return 0;
 	/* Look for associated PCI device. */
 	ret = vdev_netvsc_sysfs_readlink(buf, sizeof(buf), iface->if_name,
@@ -505,7 +510,7 @@ vdev_netvsc_alarm(__rte_unused void *arg)
  */
 static int
 vdev_netvsc_netvsc_probe(const struct if_nameindex *iface,
-			 const struct rte_ether_addr *eth_addr,
+			 const struct ether_addr *eth_addr,
 			 va_list ap)
 {
 	const char *name = va_arg(ap, const char *);
@@ -525,16 +530,24 @@ vdev_netvsc_netvsc_probe(const struct if_nameindex *iface,
 				if (!strcmp(pair->value, iface->if_name))
 					break;
 			} else if (!strcmp(pair->key, VDEV_NETVSC_ARG_MAC)) {
-				struct rte_ether_addr tmp;
+				struct ether_addr tmp;
 
-				if (rte_ether_unformat_addr(pair->value, &tmp) != 0) {
+				if (sscanf(pair->value,
+					   "%" SCNx8 ":%" SCNx8 ":%" SCNx8 ":"
+					   "%" SCNx8 ":%" SCNx8 ":%" SCNx8,
+					   &tmp.addr_bytes[0],
+					   &tmp.addr_bytes[1],
+					   &tmp.addr_bytes[2],
+					   &tmp.addr_bytes[3],
+					   &tmp.addr_bytes[4],
+					   &tmp.addr_bytes[5]) != 6) {
 					DRV_LOG(ERR,
 						"invalid MAC address format"
 						" \"%s\"",
 						pair->value);
 					return -EINVAL;
 				}
-				if (rte_is_same_ether_addr(eth_addr, &tmp))
+				if (is_same_ether_addr(eth_addr, &tmp))
 					break;
 			}
 		}
@@ -772,6 +785,14 @@ RTE_PMD_REGISTER_PARAM_STRING(net_vdev_netvsc,
 			      VDEV_NETVSC_ARG_MAC "=<string> "
 			      VDEV_NETVSC_ARG_FORCE "=<int> "
 			      VDEV_NETVSC_ARG_IGNORE "=<int>");
+
+/** Initialize driver log type. */
+RTE_INIT(vdev_netvsc_init_log)
+{
+	vdev_netvsc_logtype = rte_log_register("pmd.net.vdev_netvsc");
+	if (vdev_netvsc_logtype >= 0)
+		rte_log_set_level(vdev_netvsc_logtype, RTE_LOG_NOTICE);
+}
 
 /** Compare function for vdev find device operation. */
 static int

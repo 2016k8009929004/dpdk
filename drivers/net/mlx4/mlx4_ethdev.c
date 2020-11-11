@@ -8,6 +8,7 @@
  * Miscellaneous control operations for mlx4 driver.
  */
 
+#include <assert.h>
 #include <dirent.h>
 #include <errno.h>
 #include <linux/ethtool.h>
@@ -175,14 +176,14 @@ mlx4_ifreq(const struct mlx4_priv *priv, int req, struct ifreq *ifr)
  *   0 on success, negative errno value otherwise and rte_errno is set.
  */
 int
-mlx4_get_mac(struct mlx4_priv *priv, uint8_t (*mac)[RTE_ETHER_ADDR_LEN])
+mlx4_get_mac(struct mlx4_priv *priv, uint8_t (*mac)[ETHER_ADDR_LEN])
 {
 	struct ifreq request;
 	int ret = mlx4_ifreq(priv, SIOCGIFHWADDR, &request);
 
 	if (ret)
 		return ret;
-	memcpy(mac, request.ifr_hwaddr.sa_data, RTE_ETHER_ADDR_LEN);
+	memcpy(mac, request.ifr_hwaddr.sa_data, ETHER_ADDR_LEN);
 	return 0;
 }
 
@@ -340,17 +341,13 @@ enum rxmode_toggle {
  *   Pointer to Ethernet device structure.
  * @param toggle
  *   Toggle to set.
- *
- * @return
- *   0 on success, a negative errno value otherwise and rte_errno is set.
  */
-static int
+static void
 mlx4_rxmode_toggle(struct rte_eth_dev *dev, enum rxmode_toggle toggle)
 {
 	struct mlx4_priv *priv = dev->data->dev_private;
 	const char *mode;
 	struct rte_flow_error error;
-	int ret;
 
 	switch (toggle) {
 	case RXMODE_TOGGLE_PROMISC_OFF:
@@ -366,16 +363,12 @@ mlx4_rxmode_toggle(struct rte_eth_dev *dev, enum rxmode_toggle toggle)
 	default:
 		mode = "undefined";
 	}
-
-	ret = mlx4_flow_sync(priv, &error);
-	if (!ret)
-		return 0;
-
+	if (!mlx4_flow_sync(priv, &error))
+		return;
 	ERROR("cannot toggle %s mode (code %d, \"%s\"),"
 	      " flow error type %d, cause %p, message: %s",
 	      mode, rte_errno, strerror(rte_errno), error.type, error.cause,
 	      error.message ? error.message : "(unspecified)");
-	return ret;
 }
 
 /**
@@ -383,14 +376,11 @@ mlx4_rxmode_toggle(struct rte_eth_dev *dev, enum rxmode_toggle toggle)
  *
  * @param dev
  *   Pointer to Ethernet device structure.
- *
- * @return
- *   0 on success, a negative errno value otherwise and rte_errno is set.
  */
-int
+void
 mlx4_promiscuous_enable(struct rte_eth_dev *dev)
 {
-	return mlx4_rxmode_toggle(dev, RXMODE_TOGGLE_PROMISC_ON);
+	mlx4_rxmode_toggle(dev, RXMODE_TOGGLE_PROMISC_ON);
 }
 
 /**
@@ -398,14 +388,11 @@ mlx4_promiscuous_enable(struct rte_eth_dev *dev)
  *
  * @param dev
  *   Pointer to Ethernet device structure.
- *
- * @return
- *   0 on success, a negative errno value otherwise and rte_errno is set.
  */
-int
+void
 mlx4_promiscuous_disable(struct rte_eth_dev *dev)
 {
-	return mlx4_rxmode_toggle(dev, RXMODE_TOGGLE_PROMISC_OFF);
+	mlx4_rxmode_toggle(dev, RXMODE_TOGGLE_PROMISC_OFF);
 }
 
 /**
@@ -413,14 +400,11 @@ mlx4_promiscuous_disable(struct rte_eth_dev *dev)
  *
  * @param dev
  *   Pointer to Ethernet device structure.
- *
- * @return
- *   0 on success, a negative errno value otherwise and rte_errno is set.
  */
-int
+void
 mlx4_allmulticast_enable(struct rte_eth_dev *dev)
 {
-	return mlx4_rxmode_toggle(dev, RXMODE_TOGGLE_ALLMULTI_ON);
+	mlx4_rxmode_toggle(dev, RXMODE_TOGGLE_ALLMULTI_ON);
 }
 
 /**
@@ -428,14 +412,11 @@ mlx4_allmulticast_enable(struct rte_eth_dev *dev)
  *
  * @param dev
  *   Pointer to Ethernet device structure.
- *
- * @return
- *   0 on success, a negative errno value otherwise and rte_errno is set.
  */
-int
+void
 mlx4_allmulticast_disable(struct rte_eth_dev *dev)
 {
-	return mlx4_rxmode_toggle(dev, RXMODE_TOGGLE_ALLMULTI_OFF);
+	mlx4_rxmode_toggle(dev, RXMODE_TOGGLE_ALLMULTI_OFF);
 }
 
 /**
@@ -452,7 +433,7 @@ mlx4_mac_addr_remove(struct rte_eth_dev *dev, uint32_t index)
 	struct mlx4_priv *priv = dev->data->dev_private;
 	struct rte_flow_error error;
 
-	if (index >= RTE_DIM(priv->mac) - priv->mac_mc) {
+	if (index >= RTE_DIM(priv->mac)) {
 		rte_errno = EINVAL;
 		return;
 	}
@@ -482,7 +463,7 @@ mlx4_mac_addr_remove(struct rte_eth_dev *dev, uint32_t index)
  *   0 on success, negative errno value otherwise and rte_errno is set.
  */
 int
-mlx4_mac_addr_add(struct rte_eth_dev *dev, struct rte_ether_addr *mac_addr,
+mlx4_mac_addr_add(struct rte_eth_dev *dev, struct ether_addr *mac_addr,
 		  uint32_t index, uint32_t vmdq)
 {
 	struct mlx4_priv *priv = dev->data->dev_private;
@@ -490,7 +471,7 @@ mlx4_mac_addr_add(struct rte_eth_dev *dev, struct rte_ether_addr *mac_addr,
 	int ret;
 
 	(void)vmdq;
-	if (index >= RTE_DIM(priv->mac) - priv->mac_mc) {
+	if (index >= RTE_DIM(priv->mac)) {
 		rte_errno = EINVAL;
 		return -rte_errno;
 	}
@@ -502,63 +483,6 @@ mlx4_mac_addr_add(struct rte_eth_dev *dev, struct rte_ether_addr *mac_addr,
 	      " at index %d (code %d, \"%s\"),"
 	      " flow error type %d, cause %p, message: %s",
 	      index, rte_errno, strerror(rte_errno), error.type, error.cause,
-	      error.message ? error.message : "(unspecified)");
-	return ret;
-}
-
-/**
- * DPDK callback to configure multicast addresses.
- *
- * @param dev
- *   Pointer to Ethernet device structure.
- * @param list
- *   List of MAC addresses to register.
- * @param num
- *   Number of entries in list.
- *
- * @return
- *   0 on success, negative errno value otherwise and rte_errno is set.
- */
-int
-mlx4_set_mc_addr_list(struct rte_eth_dev *dev, struct rte_ether_addr *list,
-		      uint32_t num)
-{
-	struct mlx4_priv *priv = dev->data->dev_private;
-	struct rte_flow_error error;
-	int ret;
-
-	if (num > RTE_DIM(priv->mac)) {
-		rte_errno = EINVAL;
-		return -rte_errno;
-	}
-	/*
-	 * Make sure there is enough room to increase the number of
-	 * multicast entries without overwriting standard entries.
-	 */
-	if (num > priv->mac_mc) {
-		unsigned int i;
-
-		for (i = RTE_DIM(priv->mac) - num;
-		     i != RTE_DIM(priv->mac) - priv->mac_mc;
-		     ++i)
-			if (!rte_is_zero_ether_addr(&priv->mac[i])) {
-				rte_errno = EBUSY;
-				return -rte_errno;
-			}
-	} else if (num < priv->mac_mc) {
-		/* Clear unused entries. */
-		memset(priv->mac + RTE_DIM(priv->mac) - priv->mac_mc,
-		       0,
-		       sizeof(priv->mac[0]) * (priv->mac_mc - num));
-	}
-	memcpy(priv->mac + RTE_DIM(priv->mac) - num, list, sizeof(*list) * num);
-	priv->mac_mc = num;
-	ret = mlx4_flow_sync(priv, &error);
-	if (!ret)
-		return 0;
-	ERROR("failed to synchronize flow rules after modifying MC list,"
-	      " (code %d, \"%s\"), flow error type %d, cause %p, message: %s",
-	      rte_errno, strerror(rte_errno), error.type, error.cause,
 	      error.message ? error.message : "(unspecified)");
 	return ret;
 }
@@ -617,7 +541,7 @@ mlx4_vlan_filter_set(struct rte_eth_dev *dev, uint16_t vlan_id, int on)
  *   0 on success, negative errno value otherwise and rte_errno is set.
  */
 int
-mlx4_mac_addr_set(struct rte_eth_dev *dev, struct rte_ether_addr *mac_addr)
+mlx4_mac_addr_set(struct rte_eth_dev *dev, struct ether_addr *mac_addr)
 {
 	return mlx4_mac_addr_add(dev, mac_addr, 0, 0);
 }
@@ -630,7 +554,7 @@ mlx4_mac_addr_set(struct rte_eth_dev *dev, struct rte_ether_addr *mac_addr)
  * @param[out] info
  *   Info structure output buffer.
  */
-int
+void
 mlx4_dev_infos_get(struct rte_eth_dev *dev, struct rte_eth_dev_info *info)
 {
 	struct mlx4_priv *priv = dev->data->dev_private;
@@ -645,8 +569,9 @@ mlx4_dev_infos_get(struct rte_eth_dev *dev, struct rte_eth_dev_info *info)
 	 */
 	max = ((priv->device_attr.max_cq > priv->device_attr.max_qp) ?
 	       priv->device_attr.max_qp : priv->device_attr.max_cq);
-	/* max_rx_queues is uint16_t. */
-	max = RTE_MIN(max, (unsigned int)UINT16_MAX);
+	/* If max >= 65535 then max = 0, max_rx_queues is uint16_t. */
+	if (max >= 65535)
+		max = 65535;
 	info->max_rx_queues = max;
 	info->max_tx_queues = max;
 	info->max_mac_addrs = RTE_DIM(priv->mac);
@@ -663,34 +588,6 @@ mlx4_dev_infos_get(struct rte_eth_dev *dev, struct rte_eth_dev_info *info)
 			ETH_LINK_SPEED_40G |
 			ETH_LINK_SPEED_56G;
 	info->flow_type_rss_offloads = mlx4_conv_rss_types(priv, 0, 1);
-
-	return 0;
-}
-
-/**
- * Get firmware version of a device.
- *
- * @param dev
- *   Ethernet device port.
- * @param fw_ver
- *   String output allocated by caller.
- * @param fw_size
- *   Size of the output string, including terminating null byte.
- *
- * @return
- *   0 on success, or the size of the non truncated string if too big.
- */
-int mlx4_fw_version_get(struct rte_eth_dev *dev, char *fw_ver, size_t fw_size)
-{
-	struct mlx4_priv *priv = dev->data->dev_private;
-	struct ibv_device_attr *attr = &priv->device_attr;
-	size_t size = strnlen(attr->fw_ver, sizeof(attr->fw_ver)) + 1;
-
-	if (fw_size < size)
-		return size;
-	if (fw_ver != NULL)
-		strlcpy(fw_ver, attr->fw_ver, fw_size);
-	return 0;
 }
 
 /**
@@ -736,6 +633,7 @@ mlx4_stats_get(struct rte_eth_dev *dev, struct rte_eth_stats *stats)
 		if (idx < RTE_ETHDEV_QUEUE_STAT_CNTRS) {
 			tmp.q_opackets[idx] += txq->stats.opackets;
 			tmp.q_obytes[idx] += txq->stats.obytes;
+			tmp.q_errors[idx] += txq->stats.odropped;
 		}
 		tmp.opackets += txq->stats.opackets;
 		tmp.obytes += txq->stats.obytes;
@@ -750,11 +648,8 @@ mlx4_stats_get(struct rte_eth_dev *dev, struct rte_eth_stats *stats)
  *
  * @param dev
  *   Pointer to Ethernet device structure.
- *
- * @return
- *   alwasy 0 on success
  */
-int
+void
 mlx4_stats_reset(struct rte_eth_dev *dev)
 {
 	unsigned int i;
@@ -775,8 +670,6 @@ mlx4_stats_reset(struct rte_eth_dev *dev)
 				.idx = txq->stats.idx,
 			};
 	}
-
-	return 0;
 }
 
 /**
@@ -872,7 +765,7 @@ mlx4_flow_ctrl_get(struct rte_eth_dev *dev, struct rte_eth_fc_conf *fc_conf)
 		fc_conf->mode = RTE_FC_NONE;
 	ret = 0;
 out:
-	MLX4_ASSERT(ret >= 0);
+	assert(ret >= 0);
 	return -ret;
 }
 
@@ -918,7 +811,7 @@ mlx4_flow_ctrl_set(struct rte_eth_dev *dev, struct rte_eth_fc_conf *fc_conf)
 	}
 	ret = 0;
 out:
-	MLX4_ASSERT(ret >= 0);
+	assert(ret >= 0);
 	return -ret;
 }
 

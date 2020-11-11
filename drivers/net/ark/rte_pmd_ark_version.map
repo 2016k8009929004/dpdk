@@ -1,3 +1,4 @@
-DPDK_20.0 {
-	local: *;
+DPDK_17.05 {
+	 local: *;
+
 };

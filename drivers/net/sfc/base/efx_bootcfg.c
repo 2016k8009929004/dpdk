@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: BSD-3-Clause
  *
- * Copyright(c) 2019-2020 Xilinx, Inc.
- * Copyright(c) 2009-2019 Solarflare Communications Inc.
+ * Copyright (c) 2009-2018 Solarflare Communications Inc.
+ * All rights reserved.
  */
 
 #include "efx.h"
@@ -847,7 +847,7 @@ efx_bootcfg_read(
 		goto fail1;
 	}
 
-#if EFX_OPTS_EF10()
+#if EFSYS_OPT_HUNTINGTON || EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2
 	sector_number = enp->en_nic_cfg.enc_pf;
 #else
 	sector_number = 0;
@@ -1000,7 +1000,7 @@ efx_bootcfg_write(
 	efx_rc_t rc;
 	uint32_t sector_number;
 
-#if EFX_OPTS_EF10()
+#if EFSYS_OPT_HUNTINGTON || EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2
 	sector_number = enp->en_nic_cfg.enc_pf;
 #else
 	sector_number = 0;

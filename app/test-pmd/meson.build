@@ -3,9 +3,14 @@
 
 # override default name to drop the hyphen
 name = 'testpmd'
+allow_experimental_apis = true
 cflags += '-Wno-deprecated-declarations'
-sources = files('5tswap.c',
-	'cmdline.c',
+
+if (toolchain == 'gcc' and cc.version().version_compare('>=10.0.0'))
+       cflags += '-fcommon'
+endif
+
+sources = files('cmdline.c',
 	'cmdline_flow.c',
 	'cmdline_mtr.c',
 	'cmdline_tm.c',
@@ -36,6 +41,10 @@ if dpdk_conf.has('RTE_LIBRTE_I40E_PMD')
 endif
 if dpdk_conf.has('RTE_LIBRTE_IXGBE_PMD')
 	deps += 'pmd_ixgbe'
+endif
+if dpdk_conf.has('RTE_LIBRTE_SOFTNIC_PMD')
+	sources += files('softnicfwd.c')
+	deps += 'pmd_softnic'
 endif
 if dpdk_conf.has('RTE_LIBRTE_DPAA_PMD')
 	deps += ['bus_dpaa', 'mempool_dpaa', 'pmd_dpaa']

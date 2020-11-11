@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: BSD-3-Clause
- * Copyright 2018-2019 NXP
+ * Copyright 2018 NXP
  */
 
 #include <stdio.h>
@@ -19,6 +19,9 @@
 #include <portal/dpaa2_hw_dpio.h>
 #include "dpaa2_cmdif_logs.h"
 #include "rte_pmd_dpaa2_cmdif.h"
+
+/* Dynamic log type identifier */
+int dpaa2_cmdif_logtype;
 
 /* CMDIF driver name */
 #define DPAA2_CMDIF_PMD_NAME dpaa2_dpci
@@ -62,14 +65,14 @@ dpaa2_cmdif_enqueue_bufs(struct rte_rawdev *dev,
 	uint32_t retry_count = 0;
 	int ret;
 
+	DPAA2_CMDIF_FUNC_TRACE();
+
 	RTE_SET_USED(count);
 
 	if (unlikely(!DPAA2_PER_LCORE_DPIO)) {
 		ret = dpaa2_affine_qbman_swp();
 		if (ret) {
-			DPAA2_CMDIF_ERR(
-				"Failed to allocate IO portal, tid: %d\n",
-				rte_gettid());
+			DPAA2_CMDIF_ERR("Failure in affining portal\n");
 			return 0;
 		}
 	}
@@ -127,14 +130,14 @@ dpaa2_cmdif_dequeue_bufs(struct rte_rawdev *dev,
 	uint8_t status;
 	int ret;
 
+	DPAA2_CMDIF_FUNC_TRACE();
+
 	RTE_SET_USED(count);
 
 	if (unlikely(!DPAA2_PER_LCORE_DPIO)) {
 		ret = dpaa2_affine_qbman_swp();
 		if (ret) {
-			DPAA2_CMDIF_ERR(
-				"Failed to allocate IO portal, tid: %d\n",
-				rte_gettid());
+			DPAA2_CMDIF_ERR("Failure in affining portal\n");
 			return 0;
 		}
 	}
@@ -210,6 +213,7 @@ dpaa2_cmdif_create(const char *name,
 
 	rawdev->dev_ops = &dpaa2_cmdif_ops;
 	rawdev->device = &vdev->device;
+	rawdev->driver_name = vdev->device.driver->name;
 
 	/* For secondary processes, the primary has done all the work */
 	if (rte_eal_process_type() != RTE_PROC_PRIMARY)
@@ -288,4 +292,10 @@ static struct rte_vdev_driver dpaa2_cmdif_drv = {
 };
 
 RTE_PMD_REGISTER_VDEV(DPAA2_CMDIF_PMD_NAME, dpaa2_cmdif_drv);
-RTE_LOG_REGISTER(dpaa2_cmdif_logtype, pmd.raw.dpaa2.cmdif, INFO);
+
+RTE_INIT(dpaa2_cmdif_init_log)
+{
+	dpaa2_cmdif_logtype = rte_log_register("pmd.raw.dpaa2.cmdif");
+	if (dpaa2_cmdif_logtype >= 0)
+		rte_log_set_level(dpaa2_cmdif_logtype, RTE_LOG_INFO);
+}

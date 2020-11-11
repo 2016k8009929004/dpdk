@@ -24,7 +24,7 @@
 
 static void
 cmdline_valid_buffer(struct rdline *rdl, const char *buf,
-		     __rte_unused unsigned int size)
+		     __attribute__((unused)) unsigned int size)
 {
 	struct cmdline *cl = rdl->opaque;
 	int ret;
@@ -69,7 +69,7 @@ cmdline_set_prompt(struct cmdline *cl, const char *prompt)
 {
 	if (!cl || !prompt)
 		return;
-	strlcpy(cl->prompt, prompt, sizeof(cl->prompt));
+	snprintf(cl->prompt, sizeof(cl->prompt), "%s", prompt);
 }
 
 struct cmdline *

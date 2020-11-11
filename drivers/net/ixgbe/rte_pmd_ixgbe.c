@@ -11,7 +11,7 @@
 
 int
 rte_pmd_ixgbe_set_vf_mac_addr(uint16_t port, uint16_t vf,
-			      struct rte_ether_addr *mac_addr)
+			      struct ether_addr *mac_addr)
 {
 	struct ixgbe_hw *hw;
 	struct ixgbe_vf_info *vfinfo;
@@ -35,10 +35,9 @@ rte_pmd_ixgbe_set_vf_mac_addr(uint16_t port, uint16_t vf,
 	vfinfo = *(IXGBE_DEV_PRIVATE_TO_P_VFDATA(dev->data->dev_private));
 	rar_entry = hw->mac.num_rar_entries - (vf + 1);
 
-	if (rte_is_valid_assigned_ether_addr(
-			(struct rte_ether_addr *)new_mac)) {
+	if (is_valid_assigned_ether_addr((struct ether_addr *)new_mac)) {
 		rte_memcpy(vfinfo[vf].vf_mac_addresses, new_mac,
-			   RTE_ETHER_ADDR_LEN);
+			   ETHER_ADDR_LEN);
 		return hw->mac.ops.set_rar(hw, rar_entry, new_mac, vf,
 					   IXGBE_RAH_AV);
 	}
@@ -155,7 +154,7 @@ rte_pmd_ixgbe_set_vf_vlan_insert(uint16_t port, uint16_t vf, uint16_t vlan_id)
 	if (vf >= pci_dev->max_vfs)
 		return -EINVAL;
 
-	if (vlan_id > RTE_ETHER_MAX_VLAN_ID)
+	if (vlan_id > ETHER_MAX_VLAN_ID)
 		return -EINVAL;
 
 	hw = IXGBE_DEV_PRIVATE_TO_HW(dev->data->dev_private);
@@ -477,7 +476,7 @@ rte_pmd_ixgbe_set_vf_vlan_filter(uint16_t port, uint16_t vlan,
 	if (!is_ixgbe_supported(dev))
 		return -ENOTSUP;
 
-	if (vlan > RTE_ETHER_MAX_VLAN_ID || vf_mask == 0)
+	if ((vlan > ETHER_MAX_VLAN_ID) || (vf_mask == 0))
 		return -EINVAL;
 
 	hw = IXGBE_DEV_PRIVATE_TO_HW(dev->data->dev_private);
@@ -778,7 +777,7 @@ rte_pmd_ixgbe_set_tc_bw_alloc(uint16_t port,
 	return 0;
 }
 
-int
+int __rte_experimental
 rte_pmd_ixgbe_upd_fctrl_sbp(uint16_t port, int enable)
 {
 	struct ixgbe_hw *hw;
@@ -992,7 +991,7 @@ STATIC void rte_pmd_ixgbe_release_swfw(struct ixgbe_hw *hw, u32 mask)
 	ixgbe_release_swfw_semaphore(hw, mask);
 }
 
-int
+int __rte_experimental
 rte_pmd_ixgbe_mdio_lock(uint16_t port)
 {
 	struct ixgbe_hw *hw;
@@ -1019,7 +1018,7 @@ rte_pmd_ixgbe_mdio_lock(uint16_t port)
 	return IXGBE_SUCCESS;
 }
 
-int
+int __rte_experimental
 rte_pmd_ixgbe_mdio_unlock(uint16_t port)
 {
 	struct rte_eth_dev *dev;
@@ -1046,7 +1045,7 @@ rte_pmd_ixgbe_mdio_unlock(uint16_t port)
 	return IXGBE_SUCCESS;
 }
 
-int
+int __rte_experimental
 rte_pmd_ixgbe_mdio_unlocked_read(uint16_t port, uint32_t reg_addr,
 				 uint32_t dev_type, uint16_t *phy_data)
 {
@@ -1093,7 +1092,7 @@ rte_pmd_ixgbe_mdio_unlocked_read(uint16_t port, uint32_t reg_addr,
 	return 0;
 }
 
-int
+int __rte_experimental
 rte_pmd_ixgbe_mdio_unlocked_write(uint16_t port, uint32_t reg_addr,
 				  uint32_t dev_type, uint16_t phy_data)
 {
@@ -1137,38 +1136,5 @@ rte_pmd_ixgbe_mdio_unlocked_write(uint16_t port, uint32_t reg_addr,
 			      "PHY write cmd didn't complete\n");
 		return IXGBE_ERR_PHY;
 	}
-	return 0;
-}
-
-int
-rte_pmd_ixgbe_get_fdir_info(uint16_t port, struct rte_eth_fdir_info *fdir_info)
-{
-	struct rte_eth_dev *dev;
-
-	RTE_ETH_VALID_PORTID_OR_ERR_RET(port, -ENODEV);
-
-	dev = &rte_eth_devices[port];
-	if (!is_ixgbe_supported(dev))
-		return -ENOTSUP;
-
-	ixgbe_fdir_info_get(dev, fdir_info);
-
-	return 0;
-}
-
-int
-rte_pmd_ixgbe_get_fdir_stats(uint16_t port,
-			     struct rte_eth_fdir_stats *fdir_stats)
-{
-	struct rte_eth_dev *dev;
-
-	RTE_ETH_VALID_PORTID_OR_ERR_RET(port, -ENODEV);
-
-	dev = &rte_eth_devices[port];
-	if (!is_ixgbe_supported(dev))
-		return -ENOTSUP;
-
-	ixgbe_fdir_stats_get(dev, fdir_stats);
-
 	return 0;
 }

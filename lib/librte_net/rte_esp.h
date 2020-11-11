@@ -11,7 +11,7 @@
  * ESP-related defines
  */
 
-#include <rte_byteorder.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -20,18 +20,10 @@ extern "C" {
 /**
  * ESP Header
  */
-struct rte_esp_hdr {
+struct esp_hdr {
 	rte_be32_t spi;  /**< Security Parameters Index */
 	rte_be32_t seq;  /**< packet sequence number */
-} __rte_packed;
-
-/**
- * ESP Trailer
- */
-struct rte_esp_tail {
-	uint8_t pad_len;     /**< number of pad bytes (0-255) */
-	uint8_t next_proto;  /**< IPv4 or IPv6 or next layer header */
-} __rte_packed;
+} __attribute__((__packed__));
 
 #ifdef __cplusplus
 }

@@ -124,7 +124,7 @@ const rte_hash_cmp_eq_t cmp_jump_table[NUM_KEY_CMP_CASES] = {
 
 struct lcore_cache {
 	unsigned len; /**< Cache len */
-	uint32_t objs[LCORE_CACHE_SIZE]; /**< Cache objects */
+	void *objs[LCORE_CACHE_SIZE]; /**< Cache objects */
 } __rte_cache_aligned;
 
 /* Structure that stores key-value pair */
@@ -141,7 +141,6 @@ struct rte_hash_key {
 enum rte_hash_sig_compare_function {
 	RTE_HASH_COMPARE_SCALAR = 0,
 	RTE_HASH_COMPARE_SSE,
-	RTE_HASH_COMPARE_NEON,
 	RTE_HASH_COMPARE_NUM
 };
 
@@ -211,13 +210,6 @@ struct rte_hash {
 	rte_rwlock_t *readwrite_lock; /**< Read-write lock thread-safety. */
 	struct rte_hash_bucket *buckets_ext; /**< Extra buckets array */
 	struct rte_ring *free_ext_bkts; /**< Ring of indexes of free buckets */
-	/* Stores index of an empty ext bkt to be recycled on calling
-	 * rte_hash_del_xxx APIs. When lock free read-write concurrency is
-	 * enabled, an empty ext bkt cannot be put into free list immediately
-	 * (as readers might be using it still). Hence freeing of the ext bkt
-	 * is piggy-backed to freeing of the key index.
-	 */
-	uint32_t *ext_bkt_to_free;
 	uint32_t *tbl_chng_cnt;
 	/**< Indicates if the hash table changed from last read. */
 } __rte_cache_aligned;

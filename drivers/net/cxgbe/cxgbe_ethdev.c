@@ -57,7 +57,7 @@
 /*
  *... and the PCI ID Table itself ...
  */
-#include "base/t4_pci_id_tbl.h"
+#include "t4_pci_id_tbl.h"
 
 uint16_t cxgbe_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 			 uint16_t nb_pkts)
@@ -67,6 +67,9 @@ uint16_t cxgbe_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 	uint16_t total_sent = 0;
 	uint16_t idx = 0;
 	int ret = 0;
+
+	CXGBE_DEBUG_TX(adapter, "%s: txq = %p; tx_pkts = %p; nb_pkts = %d\n",
+		       __func__, txq, tx_pkts, nb_pkts);
 
 	t4_os_lock(&txq->txq_lock);
 	/* free up desc from already completed tx */
@@ -101,13 +104,17 @@ uint16_t cxgbe_recv_pkts(void *rx_queue, struct rte_mbuf **rx_pkts,
 	struct sge_eth_rxq *rxq = (struct sge_eth_rxq *)rx_queue;
 	unsigned int work_done;
 
+	CXGBE_DEBUG_RX(adapter, "%s: rxq->rspq.cntxt_id = %u; nb_pkts = %d\n",
+		       __func__, rxq->rspq.cntxt_id, nb_pkts);
+
 	if (cxgbe_poll(&rxq->rspq, rx_pkts, (unsigned int)nb_pkts, &work_done))
 		dev_err(adapter, "error in cxgbe poll\n");
 
+	CXGBE_DEBUG_RX(adapter, "%s: work_done = %u\n", __func__, work_done);
 	return work_done;
 }
 
-int cxgbe_dev_info_get(struct rte_eth_dev *eth_dev,
+void cxgbe_dev_info_get(struct rte_eth_dev *eth_dev,
 			struct rte_eth_dev_info *device_info)
 {
 	struct port_info *pi = eth_dev->data->dev_private;
@@ -142,48 +149,46 @@ int cxgbe_dev_info_get(struct rte_eth_dev *eth_dev,
 	device_info->rx_desc_lim = cxgbe_desc_lim;
 	device_info->tx_desc_lim = cxgbe_desc_lim;
 	cxgbe_get_speed_caps(pi, &device_info->speed_capa);
-
-	return 0;
 }
 
-int cxgbe_dev_promiscuous_enable(struct rte_eth_dev *eth_dev)
+void cxgbe_dev_promiscuous_enable(struct rte_eth_dev *eth_dev)
 {
 	struct port_info *pi = eth_dev->data->dev_private;
 	struct adapter *adapter = pi->adapter;
 
-	return t4_set_rxmode(adapter, adapter->mbox, pi->viid, -1,
-			     1, -1, 1, -1, false);
+	t4_set_rxmode(adapter, adapter->mbox, pi->viid, -1,
+		      1, -1, 1, -1, false);
 }
 
-int cxgbe_dev_promiscuous_disable(struct rte_eth_dev *eth_dev)
+void cxgbe_dev_promiscuous_disable(struct rte_eth_dev *eth_dev)
 {
 	struct port_info *pi = eth_dev->data->dev_private;
 	struct adapter *adapter = pi->adapter;
 
-	return t4_set_rxmode(adapter, adapter->mbox, pi->viid, -1,
-			     0, -1, 1, -1, false);
+	t4_set_rxmode(adapter, adapter->mbox, pi->viid, -1,
+		      0, -1, 1, -1, false);
 }
 
-int cxgbe_dev_allmulticast_enable(struct rte_eth_dev *eth_dev)
-{
-	struct port_info *pi = eth_dev->data->dev_private;
-	struct adapter *adapter = pi->adapter;
-
-	/* TODO: address filters ?? */
-
-	return t4_set_rxmode(adapter, adapter->mbox, pi->viid, -1,
-			     -1, 1, 1, -1, false);
-}
-
-int cxgbe_dev_allmulticast_disable(struct rte_eth_dev *eth_dev)
+void cxgbe_dev_allmulticast_enable(struct rte_eth_dev *eth_dev)
 {
 	struct port_info *pi = eth_dev->data->dev_private;
 	struct adapter *adapter = pi->adapter;
 
 	/* TODO: address filters ?? */
 
-	return t4_set_rxmode(adapter, adapter->mbox, pi->viid, -1,
-			     -1, 0, 1, -1, false);
+	t4_set_rxmode(adapter, adapter->mbox, pi->viid, -1,
+		      -1, 1, 1, -1, false);
+}
+
+void cxgbe_dev_allmulticast_disable(struct rte_eth_dev *eth_dev)
+{
+	struct port_info *pi = eth_dev->data->dev_private;
+	struct adapter *adapter = pi->adapter;
+
+	/* TODO: address filters ?? */
+
+	t4_set_rxmode(adapter, adapter->mbox, pi->viid, -1,
+		      -1, 0, 1, -1, false);
 }
 
 int cxgbe_dev_link_update(struct rte_eth_dev *eth_dev,
@@ -286,18 +291,16 @@ int cxgbe_dev_mtu_set(struct rte_eth_dev *eth_dev, uint16_t mtu)
 	struct adapter *adapter = pi->adapter;
 	struct rte_eth_dev_info dev_info;
 	int err;
-	uint16_t new_mtu = mtu + RTE_ETHER_HDR_LEN + RTE_ETHER_CRC_LEN;
+	uint16_t new_mtu = mtu + ETHER_HDR_LEN + ETHER_CRC_LEN;
 
-	err = cxgbe_dev_info_get(eth_dev, &dev_info);
-	if (err != 0)
-		return err;
+	cxgbe_dev_info_get(eth_dev, &dev_info);
 
-	/* Must accommodate at least RTE_ETHER_MIN_MTU */
-	if (new_mtu < RTE_ETHER_MIN_MTU || new_mtu > dev_info.max_rx_pktlen)
+	/* Must accommodate at least ETHER_MIN_MTU */
+	if ((new_mtu < ETHER_MIN_MTU) || (new_mtu > dev_info.max_rx_pktlen))
 		return -EINVAL;
 
 	/* set to jumbo mode if needed */
-	if (new_mtu > RTE_ETHER_MAX_LEN)
+	if (new_mtu > ETHER_MAX_LEN)
 		eth_dev->data->dev_conf.rxmode.offloads |=
 			DEV_RX_OFFLOAD_JUMBO_FRAME;
 	else
@@ -422,10 +425,6 @@ int cxgbe_dev_configure(struct rte_eth_dev *eth_dev)
 	int err;
 
 	CXGBE_FUNC_TRACE();
-
-	if (eth_dev->data->dev_conf.rxmode.mq_mode & ETH_MQ_RX_RSS_FLAG)
-		eth_dev->data->dev_conf.rxmode.offloads |=
-			DEV_RX_OFFLOAD_RSS_HASH;
 
 	if (!(adapter->flags & FW_QUEUE_BOUND)) {
 		err = cxgbe_setup_sge_fwevtq(adapter);
@@ -600,14 +599,9 @@ int cxgbe_dev_rx_queue_setup(struct rte_eth_dev *eth_dev,
 		  __func__, eth_dev->data->nb_rx_queues, queue_idx, nb_desc,
 		  socket_id, mp);
 
-	err = cxgbe_dev_info_get(eth_dev, &dev_info);
-	if (err != 0) {
-		dev_err(adap, "%s: error during getting ethernet device info",
-			__func__);
-		return err;
-	}
+	cxgbe_dev_info_get(eth_dev, &dev_info);
 
-	/* Must accommodate at least RTE_ETHER_MIN_MTU */
+	/* Must accommodate at least ETHER_MIN_MTU */
 	if ((pkt_len < dev_info.min_rx_bufsize) ||
 	    (pkt_len > dev_info.max_rx_pktlen)) {
 		dev_err(adap, "%s: max pkt len must be > %d and <= %d\n",
@@ -646,7 +640,7 @@ int cxgbe_dev_rx_queue_setup(struct rte_eth_dev *eth_dev,
 		rxq->fl.size = temp_nb_desc;
 
 	/* Set to jumbo mode if necessary */
-	if (pkt_len > RTE_ETHER_MAX_LEN)
+	if (pkt_len > ETHER_MAX_LEN)
 		eth_dev->data->dev_conf.rxmode.offloads |=
 			DEV_RX_OFFLOAD_JUMBO_FRAME;
 	else
@@ -654,7 +648,7 @@ int cxgbe_dev_rx_queue_setup(struct rte_eth_dev *eth_dev,
 			~DEV_RX_OFFLOAD_JUMBO_FRAME;
 
 	err = t4_sge_alloc_rxq(adapter, &rxq->rspq, false, eth_dev, msi_idx,
-			       &rxq->fl, NULL,
+			       &rxq->fl, t4_ethrx_handler,
 			       is_pf4(adapter) ?
 			       t4_get_tp_ch_map(adapter, pi->tx_chan) : 0, mp,
 			       queue_idx, socket_id);
@@ -726,6 +720,7 @@ static int cxgbe_dev_stats_get(struct rte_eth_dev *eth_dev,
 
 		eth_stats->q_opackets[i] = txq->stats.pkts;
 		eth_stats->q_obytes[i] = txq->stats.tx_bytes;
+		eth_stats->q_errors[i] = txq->stats.mapping_err;
 	}
 	return 0;
 }
@@ -733,7 +728,7 @@ static int cxgbe_dev_stats_get(struct rte_eth_dev *eth_dev,
 /*
  * Reset port statistics.
  */
-static int cxgbe_dev_stats_reset(struct rte_eth_dev *eth_dev)
+static void cxgbe_dev_stats_reset(struct rte_eth_dev *eth_dev)
 {
 	struct port_info *pi = eth_dev->data->dev_private;
 	struct adapter *adapter = pi->adapter;
@@ -756,8 +751,6 @@ static int cxgbe_dev_stats_reset(struct rte_eth_dev *eth_dev)
 		txq->stats.tx_bytes = 0;
 		txq->stats.mapping_err = 0;
 	}
-
-	return 0;
 }
 
 static int cxgbe_flow_ctrl_get(struct rte_eth_dev *eth_dev,
@@ -1077,7 +1070,7 @@ static int cxgbe_get_regs(struct rte_eth_dev *eth_dev,
 	return 0;
 }
 
-int cxgbe_mac_addr_set(struct rte_eth_dev *dev, struct rte_ether_addr *addr)
+int cxgbe_mac_addr_set(struct rte_eth_dev *dev, struct ether_addr *addr)
 {
 	struct port_info *pi = dev->data->dev_private;
 	int ret;
@@ -1191,8 +1184,6 @@ static int eth_cxgbe_dev_init(struct rte_eth_dev *eth_dev)
 	adapter->eth_dev = eth_dev;
 	pi->adapter = adapter;
 
-	cxgbe_process_devargs(adapter);
-
 	err = cxgbe_probe(adapter);
 	if (err) {
 		dev_err(adapter, "%s: cxgbe probe failed with err %d\n",
@@ -1240,9 +1231,5 @@ RTE_PMD_REGISTER_PCI(net_cxgbe, rte_cxgbe_pmd);
 RTE_PMD_REGISTER_PCI_TABLE(net_cxgbe, cxgb4_pci_tbl);
 RTE_PMD_REGISTER_KMOD_DEP(net_cxgbe, "* igb_uio | uio_pci_generic | vfio-pci");
 RTE_PMD_REGISTER_PARAM_STRING(net_cxgbe,
-			      CXGBE_DEVARG_CMN_KEEP_OVLAN "=<0|1> "
-			      CXGBE_DEVARG_CMN_TX_MODE_LATENCY "=<0|1> "
-			      CXGBE_DEVARG_PF_FILTER_MODE "=<uint32> "
-			      CXGBE_DEVARG_PF_FILTER_MASK "=<uint32> ");
-RTE_LOG_REGISTER(cxgbe_logtype, pmd.net.cxgbe, NOTICE);
-RTE_LOG_REGISTER(cxgbe_mbox_logtype, pmd.net.cxgbe.mbox, NOTICE);
+			      CXGBE_DEVARG_KEEP_OVLAN "=<0|1> "
+			      CXGBE_DEVARG_FORCE_LINK_UP "=<0|1> ");

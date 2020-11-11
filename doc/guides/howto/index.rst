@@ -18,5 +18,3 @@ HowTo Guides
     virtio_user_as_exceptional_path
     packet_capture_framework
     telemetry
-    debug_troubleshoot
-    openwrt

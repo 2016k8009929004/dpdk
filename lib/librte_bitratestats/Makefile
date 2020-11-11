@@ -11,6 +11,8 @@ LDLIBS += -lrte_eal -lrte_metrics -lrte_ethdev
 
 EXPORT_MAP := rte_bitratestats_version.map
 
+LIBABIVER := 2
+
 # all source are stored in SRCS-y
 SRCS-$(CONFIG_RTE_LIBRTE_BITRATE) := rte_bitrate.c
 

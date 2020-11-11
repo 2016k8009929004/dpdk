@@ -10,6 +10,9 @@ LIB = librte_pmd_openssl.a
 CFLAGS += -O3
 CFLAGS += $(WERROR_FLAGS)
 
+# library version
+LIBABIVER := 1
+
 # versioning export map
 EXPORT_MAP := rte_pmd_openssl_version.map
 

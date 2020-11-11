@@ -137,12 +137,11 @@ should use the ``rte_event_enqueue_burst()`` function.
 	if (cap & RTE_EVENT_ETH_TX_ADAPTER_CAP_INTERNAL_PORT) {
 
 		event.mbuf = m;
-		eq_flags = 0;
 
 		m->port = tx_port;
 		rte_event_eth_tx_adapter_txq_set(m, tx_queue_id);
 
-		rte_event_eth_tx_adapter_enqueue(dev_id, ev_port, &event, 1, eq_flags);
+		rte_event_eth_tx_adapter_enqueue(dev_id, ev_port, &event, 1);
 	} else {
 
 		event.queue_id = qid; /* event queue linked to adapter port */

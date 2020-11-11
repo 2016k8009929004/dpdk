@@ -26,7 +26,7 @@ Set the target, for example:
 
 .. code-block:: console
 
-    export RTE_TARGET=x86_64-native-linux-gcc
+    export RTE_TARGET=x86_64-native-linuxapp-gcc
 
 See the *DPDK Getting Started* Guide for possible ``RTE_TARGET`` values.
 
@@ -40,7 +40,7 @@ Build the application as follows:
 Running the Application
 -----------------------
 
-To run the example in a ``linux`` environment:
+To run the example in a ``linuxapp`` environment:
 
 .. code-block:: console
 
@@ -193,13 +193,7 @@ application is shown below:
                    }
           }
 
-           ret = rte_eth_promiscuous_enable(port_id);
-           if (ret != 0) {
-                   rte_exit(EXIT_FAILURE,
-                           ":: cannot enable promiscuous mode: err=%d, port=%u\n",
-                           ret, port_id);
-           }
-
+           rte_eth_promiscuous_enable(port_id);
            ret = rte_eth_dev_start(port_id);
            if (ret < 0) {
                    rte_exit(EXIT_FAILURE,
@@ -284,12 +278,7 @@ We are setting the RX port to promiscuous mode:
 
 .. code-block:: c
 
-   ret = rte_eth_promiscuous_enable(port_id);
-   if (ret != 0) {
-        rte_exit(EXIT_FAILURE,
-                 ":: cannot enable promiscuous mode: err=%d, port=%u\n",
-                 ret, port_id);
-   }
+   rte_eth_promiscuous_enable(port_id);
 
 The last step is to start the port.
 
@@ -315,7 +304,7 @@ looks like the following:
    main_loop(void)
    {
            struct rte_mbuf *mbufs[32];
-           struct rte_ether_hdr *eth_hdr;
+           struct ether_hdr *eth_hdr;
            uint16_t nb_rx;
            uint16_t i;
            uint16_t j;
@@ -329,7 +318,7 @@ looks like the following:
                                            struct rte_mbuf *m = mbufs[j];
 
                                            eth_hdr = rte_pktmbuf_mtod(m,
-                                                        struct rte_ether_hdr *);
+                                                        struct ether_hdr *);
                                            print_ether_addr("src=",
                                                         &eth_hdr->s_addr);
                                            print_ether_addr(" - dst=",
@@ -359,7 +348,7 @@ queues and printing for each packet the destination queue:
                 if (nb_rx) {
                         for (j = 0; j < nb_rx; j++) {
                              struct rte_mbuf *m = mbufs[j];
-                             eth_hdr = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
+                             eth_hdr = rte_pktmbuf_mtod(m, struct ether_hdr *);
                              print_ether_addr("src=", &eth_hdr->s_addr);
                              print_ether_addr(" - dst=", &eth_hdr->d_addr);
                              printf(" - queue=0x%x", (unsigned int)i);
@@ -513,3 +502,4 @@ The last part of the function is to validate the rule and create it.
    int res = rte_flow_validate(port_id, &attr, pattern, action, &error);
    if (!res)
         flow = rte_flow_create(port_id, &attr, pattern, action, &error);
+

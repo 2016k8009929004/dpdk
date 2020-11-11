@@ -10,7 +10,7 @@
 #include <rte_malloc.h>
 #include <rte_cryptodev_pmd.h>
 
-#include "mrvl_pmd_private.h"
+#include "rte_mrvl_pmd_private.h"
 
 /**
  * Capabilities list to be used in reporting to DPDK.
@@ -633,7 +633,7 @@ mrvl_crypto_pmd_close(struct rte_cryptodev *dev)
 static int
 mrvl_crypto_pmd_qp_setup(struct rte_cryptodev *dev, uint16_t qp_id,
 		const struct rte_cryptodev_qp_conf *qp_conf,
-		int socket_id)
+		int socket_id, struct rte_mempool *session_pool)
 {
 	struct mrvl_crypto_qp *qp = NULL;
 	char match[RTE_CRYPTODEV_NAME_MAX_LEN];
@@ -690,8 +690,7 @@ mrvl_crypto_pmd_qp_setup(struct rte_cryptodev *dev, uint16_t qp_id,
 		if (sam_cio_init(&qp->cio_params, &qp->cio) < 0)
 			break;
 
-		qp->sess_mp = qp_conf->mp_session;
-		qp->sess_mp_priv = qp_conf->mp_session_private;
+		qp->sess_mp = session_pool;
 
 		memset(&qp->stats, 0, sizeof(qp->stats));
 		dev->data->queue_pairs[qp_id] = qp;
@@ -700,6 +699,17 @@ mrvl_crypto_pmd_qp_setup(struct rte_cryptodev *dev, uint16_t qp_id,
 
 	rte_free(qp);
 	return -1;
+}
+
+/** Return the number of allocated queue pairs (PMD ops callback).
+ *
+ * @param dev Pointer to the device structure.
+ * @returns Number of allocated queue pairs.
+ */
+static uint32_t
+mrvl_crypto_pmd_qp_count(struct rte_cryptodev *dev)
+{
+	return dev->data->nb_queue_pairs;
 }
 
 /** Returns the size of the session structure (PMD ops callback).
@@ -740,8 +750,6 @@ mrvl_crypto_pmd_sym_session_configure(__rte_unused struct rte_cryptodev *dev,
 		return -ENOMEM;
 	}
 
-	memset(sess_private_data, 0, sizeof(struct mrvl_crypto_session));
-
 	ret = mrvl_crypto_set_session_parameters(sess_private_data, xform);
 	if (ret != 0) {
 		MRVL_LOG(ERR, "Failed to configure session parameters!");
@@ -759,12 +767,6 @@ mrvl_crypto_pmd_sym_session_configure(__rte_unused struct rte_cryptodev *dev,
 		MRVL_LOG(DEBUG, "Failed to create session!");
 		return -EIO;
 	}
-
-	/* free the keys memory allocated for session creation */
-	if (mrvl_sess->sam_sess_params.cipher_key != NULL)
-		free(mrvl_sess->sam_sess_params.cipher_key);
-	if (mrvl_sess->sam_sess_params.auth_key != NULL)
-		free(mrvl_sess->sam_sess_params.auth_key);
 
 	return 0;
 }
@@ -816,6 +818,7 @@ static struct rte_cryptodev_ops mrvl_crypto_pmd_ops = {
 
 		.queue_pair_setup	= mrvl_crypto_pmd_qp_setup,
 		.queue_pair_release	= mrvl_crypto_pmd_qp_release,
+		.queue_pair_count	= mrvl_crypto_pmd_qp_count,
 
 		.sym_session_get_size	= mrvl_crypto_pmd_sym_session_get_size,
 		.sym_session_configure	= mrvl_crypto_pmd_sym_session_configure,

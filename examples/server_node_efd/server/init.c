@@ -111,10 +111,7 @@ init_port(uint16_t port_num)
 	printf("Port %u init ... ", port_num);
 	fflush(stdout);
 
-	retval = rte_eth_dev_info_get(port_num, &dev_info);
-	if (retval != 0)
-		return retval;
-
+	rte_eth_dev_info_get(port_num, &dev_info);
 	if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_MBUF_FAST_FREE)
 		port_conf.txmode.offloads |=
 			DEV_TX_OFFLOAD_MBUF_FAST_FREE;
@@ -150,9 +147,7 @@ init_port(uint16_t port_num)
 			return retval;
 	}
 
-	retval = rte_eth_promiscuous_enable(port_num);
-	if (retval != 0)
-		return retval;
+	rte_eth_promiscuous_enable(port_num);
 
 	retval = rte_eth_dev_start(port_num);
 	if (retval < 0)
@@ -246,7 +241,6 @@ check_all_ports_link_status(uint16_t port_num, uint32_t port_mask)
 	uint8_t count, all_ports_up, print_flag = 0;
 	uint16_t portid;
 	struct rte_eth_link link;
-	int ret;
 
 	printf("\nChecking link status");
 	fflush(stdout);
@@ -256,14 +250,7 @@ check_all_ports_link_status(uint16_t port_num, uint32_t port_mask)
 			if ((port_mask & (1 << info->id[portid])) == 0)
 				continue;
 			memset(&link, 0, sizeof(link));
-			ret = rte_eth_link_get_nowait(info->id[portid], &link);
-			if (ret < 0) {
-				all_ports_up = 0;
-				if (print_flag == 1)
-					printf("Port %u link get failed: %s\n",
-						portid, rte_strerror(-ret));
-				continue;
-			}
+			rte_eth_link_get_nowait(info->id[portid], &link);
 			/* print link status if flag set */
 			if (print_flag == 1) {
 				if (link.link_status)

@@ -329,8 +329,7 @@ enic_noscatter_recv_pkts(void *rx_queue, struct rte_mbuf **rx_pkts,
 	return rx - rx_pkts;
 }
 
-static inline void enic_free_wq_bufs(struct vnic_wq *wq,
-				     uint16_t completed_index)
+static inline void enic_free_wq_bufs(struct vnic_wq *wq, u16 completed_index)
 {
 	struct rte_mbuf *buf;
 	struct rte_mbuf *m, *free[ENIC_MAX_WQ_DESCS];
@@ -372,7 +371,7 @@ static inline void enic_free_wq_bufs(struct vnic_wq *wq,
 
 unsigned int enic_cleanup_wq(__rte_unused struct enic *enic, struct vnic_wq *wq)
 {
-	uint16_t completed_index;
+	u16 completed_index;
 
 	completed_index = *((uint32_t *)wq->cqmsg_rz->addr) & 0xffff;
 

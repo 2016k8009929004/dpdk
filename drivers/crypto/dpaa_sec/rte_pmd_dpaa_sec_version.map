@@ -1,8 +1,4 @@
-INTERNAL {
-	global:
-
-	dpaa_sec_eventq_attach;
-	dpaa_sec_eventq_detach;
+DPDK_17.11 {
 
 	local: *;
 };

@@ -18,22 +18,10 @@
 #include <rte_common.h>
 #include <rte_spinlock.h>
 
-#include "eal_private.h"
 #include "eal_internal_cfg.h"
 #include "eal_memalloc.h"
 #include "malloc_elem.h"
 #include "malloc_heap.h"
-
-/*
- * If debugging is enabled, freed memory is set to poison value
- * to catch buggy programs. Otherwise, freed memory is set to zero
- * to avoid having to zero in zmalloc
- */
-#ifdef RTE_MALLOC_DEBUG
-#define MALLOC_POISON	       0x6b
-#else
-#define MALLOC_POISON	       0
-#endif
 
 size_t
 malloc_elem_find_max_iova_contig(struct malloc_elem *elem, size_t align)
@@ -43,8 +31,6 @@ malloc_elem_find_max_iova_contig(struct malloc_elem *elem, size_t align)
 	rte_iova_t expected_iova;
 	struct rte_memseg *ms;
 	size_t page_sz, cur, max;
-	const struct internal_config *internal_conf =
-		eal_get_internal_configuration();
 
 	page_sz = (size_t)elem->msl->page_sz;
 	data_start = RTE_PTR_ADD(elem, MALLOC_ELEM_HEADER_LEN);
@@ -63,7 +49,7 @@ malloc_elem_find_max_iova_contig(struct malloc_elem *elem, size_t align)
 	 */
 	if (!elem->msl->external &&
 			(rte_eal_iova_mode() == RTE_IOVA_VA ||
-				(internal_conf->legacy_mem &&
+				(internal_config.legacy_mem &&
 					rte_eal_has_hugepages())))
 		return RTE_PTR_DIFF(data_end, contig_seg_start);
 
@@ -128,8 +114,7 @@ malloc_elem_find_max_iova_contig(struct malloc_elem *elem, size_t align)
  */
 void
 malloc_elem_init(struct malloc_elem *elem, struct malloc_heap *heap,
-		struct rte_memseg_list *msl, size_t size,
-		struct malloc_elem *orig_elem, size_t orig_size)
+		struct rte_memseg_list *msl, size_t size)
 {
 	elem->heap = heap;
 	elem->msl = msl;
@@ -139,8 +124,6 @@ malloc_elem_init(struct malloc_elem *elem, struct malloc_heap *heap,
 	elem->state = ELEM_FREE;
 	elem->size = size;
 	elem->pad = 0;
-	elem->orig_elem = orig_elem;
-	elem->orig_size = orig_size;
 	set_header(elem);
 	set_trailer(elem);
 }
@@ -299,8 +282,7 @@ split_elem(struct malloc_elem *elem, struct malloc_elem *split_pt)
 	const size_t old_elem_size = (uintptr_t)split_pt - (uintptr_t)elem;
 	const size_t new_elem_size = elem->size - old_elem_size;
 
-	malloc_elem_init(split_pt, elem->heap, elem->msl, new_elem_size,
-			 elem->orig_elem, elem->orig_size);
+	malloc_elem_init(split_pt, elem->heap, elem->msl, new_elem_size);
 	split_pt->prev = elem;
 	split_pt->next = next_elem;
 	if (next_elem)
@@ -343,25 +325,15 @@ remove_elem(struct malloc_elem *elem)
 static int
 next_elem_is_adjacent(struct malloc_elem *elem)
 {
-	const struct internal_config *internal_conf =
-		eal_get_internal_configuration();
-
 	return elem->next == RTE_PTR_ADD(elem, elem->size) &&
-			elem->next->msl == elem->msl &&
-			(!internal_conf->match_allocations ||
-			 elem->orig_elem == elem->next->orig_elem);
+			elem->next->msl == elem->msl;
 }
 
 static int
 prev_elem_is_adjacent(struct malloc_elem *elem)
 {
-	const struct internal_config *internal_conf =
-		eal_get_internal_configuration();
-
 	return elem == RTE_PTR_ADD(elem->prev, elem->prev->size) &&
-			elem->prev->msl == elem->msl &&
-			(!internal_conf->match_allocations ||
-			 elem->orig_elem == elem->prev->orig_elem);
+			elem->prev->msl == elem->msl;
 }
 
 /*
@@ -523,7 +495,7 @@ malloc_elem_join_adjacent_free(struct malloc_elem *elem)
 		join_elem(elem, elem->next);
 
 		/* erase header, trailer and pad */
-		memset(erase, MALLOC_POISON, erase_len);
+		memset(erase, 0, erase_len);
 	}
 
 	/*
@@ -547,7 +519,7 @@ malloc_elem_join_adjacent_free(struct malloc_elem *elem)
 		join_elem(new_elem, elem);
 
 		/* erase header, trailer and pad */
-		memset(erase, MALLOC_POISON, erase_len);
+		memset(erase, 0, erase_len);
 
 		elem = new_elem;
 	}
@@ -578,8 +550,7 @@ malloc_elem_free(struct malloc_elem *elem)
 	/* decrease heap's count of allocated elements */
 	elem->heap->alloc_count--;
 
-	/* poison memory */
-	memset(ptr, MALLOC_POISON, data_len);
+	memset(ptr, 0, data_len);
 
 	return elem;
 }

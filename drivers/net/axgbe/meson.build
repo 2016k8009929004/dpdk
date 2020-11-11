@@ -1,9 +1,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Copyright (c) 2018 Advanced Micro Devices, Inc. All rights reserved.
 
-if not is_linux
+if host_machine.system() != 'linux'
 	build = false
-	reason = 'only supported on linux'
 endif
 
 sources = files('axgbe_ethdev.c',

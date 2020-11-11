@@ -20,7 +20,6 @@
 
 #include "rte_eventdev.h"
 #include "rte_eventdev_pmd.h"
-#include "rte_eventdev_trace.h"
 #include "rte_event_eth_rx_adapter.h"
 
 #define BATCH_SIZE		32
@@ -199,8 +198,11 @@ struct eth_rx_queue_info {
 	int queue_enabled;	/* True if added */
 	int intr_enabled;
 	uint16_t wt;		/* Polling weight */
+	uint8_t event_queue_id;	/* Event queue to enqueue packets to */
+	uint8_t sched_type;	/* Sched type for events */
+	uint8_t priority;	/* Event priority */
+	uint32_t flow_id;	/* App provided flow identifier */
 	uint32_t flow_id_mask;	/* Set to ~0 if app provides flow id else 0 */
-	uint64_t event;
 };
 
 static struct rte_event_eth_rx_adapter **event_eth_rx_adapter;
@@ -609,33 +611,32 @@ rxa_calc_wrr_sequence(struct rte_event_eth_rx_adapter *rx_adapter,
 }
 
 static inline void
-rxa_mtoip(struct rte_mbuf *m, struct rte_ipv4_hdr **ipv4_hdr,
-	struct rte_ipv6_hdr **ipv6_hdr)
+rxa_mtoip(struct rte_mbuf *m, struct ipv4_hdr **ipv4_hdr,
+	struct ipv6_hdr **ipv6_hdr)
 {
-	struct rte_ether_hdr *eth_hdr =
-		rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
-	struct rte_vlan_hdr *vlan_hdr;
+	struct ether_hdr *eth_hdr = rte_pktmbuf_mtod(m, struct ether_hdr *);
+	struct vlan_hdr *vlan_hdr;
 
 	*ipv4_hdr = NULL;
 	*ipv6_hdr = NULL;
 
 	switch (eth_hdr->ether_type) {
-	case RTE_BE16(RTE_ETHER_TYPE_IPV4):
-		*ipv4_hdr = (struct rte_ipv4_hdr *)(eth_hdr + 1);
+	case RTE_BE16(ETHER_TYPE_IPv4):
+		*ipv4_hdr = (struct ipv4_hdr *)(eth_hdr + 1);
 		break;
 
-	case RTE_BE16(RTE_ETHER_TYPE_IPV6):
-		*ipv6_hdr = (struct rte_ipv6_hdr *)(eth_hdr + 1);
+	case RTE_BE16(ETHER_TYPE_IPv6):
+		*ipv6_hdr = (struct ipv6_hdr *)(eth_hdr + 1);
 		break;
 
-	case RTE_BE16(RTE_ETHER_TYPE_VLAN):
-		vlan_hdr = (struct rte_vlan_hdr *)(eth_hdr + 1);
+	case RTE_BE16(ETHER_TYPE_VLAN):
+		vlan_hdr = (struct vlan_hdr *)(eth_hdr + 1);
 		switch (vlan_hdr->eth_proto) {
-		case RTE_BE16(RTE_ETHER_TYPE_IPV4):
-			*ipv4_hdr = (struct rte_ipv4_hdr *)(vlan_hdr + 1);
+		case RTE_BE16(ETHER_TYPE_IPv4):
+			*ipv4_hdr = (struct ipv4_hdr *)(vlan_hdr + 1);
 			break;
-		case RTE_BE16(RTE_ETHER_TYPE_IPV6):
-			*ipv6_hdr = (struct rte_ipv6_hdr *)(vlan_hdr + 1);
+		case RTE_BE16(ETHER_TYPE_IPv6):
+			*ipv6_hdr = (struct ipv6_hdr *)(vlan_hdr + 1);
 			break;
 		default:
 			break;
@@ -655,8 +656,8 @@ rxa_do_softrss(struct rte_mbuf *m, const uint8_t *rss_key_be)
 	void *tuple;
 	struct rte_ipv4_tuple ipv4_tuple;
 	struct rte_ipv6_tuple ipv6_tuple;
-	struct rte_ipv4_hdr *ipv4_hdr;
-	struct rte_ipv6_hdr *ipv6_hdr;
+	struct ipv4_hdr *ipv4_hdr;
+	struct ipv6_hdr *ipv6_hdr;
 
 	rxa_mtoip(m, &ipv4_hdr, &ipv6_hdr);
 
@@ -714,6 +715,18 @@ rxa_enq_block_end_ts(struct rte_event_eth_rx_adapter *rx_adapter,
 	}
 }
 
+/* Add event to buffer, free space check is done prior to calling
+ * this function
+ */
+static inline void
+rxa_buffer_event(struct rte_event_eth_rx_adapter *rx_adapter,
+		struct rte_event *ev)
+{
+	struct rte_eth_event_enqueue_buffer *buf =
+	    &rx_adapter->event_enqueue_buffer;
+	rte_memcpy(&buf->events[buf->count++], ev, sizeof(struct rte_event));
+}
+
 /* Enqueue buffered events to event device */
 static inline uint16_t
 rxa_flush_event_buffer(struct rte_event_eth_rx_adapter *rx_adapter)
@@ -756,16 +769,18 @@ rxa_buffer_mbufs(struct rte_event_eth_rx_adapter *rx_adapter,
 					&dev_info->rx_queue[rx_queue_id];
 	struct rte_eth_event_enqueue_buffer *buf =
 					&rx_adapter->event_enqueue_buffer;
-	struct rte_event *ev = &buf->events[buf->count];
-	uint64_t event = eth_rx_queue_info->event;
-	uint32_t flow_id_mask = eth_rx_queue_info->flow_id_mask;
+	int32_t qid = eth_rx_queue_info->event_queue_id;
+	uint8_t sched_type = eth_rx_queue_info->sched_type;
+	uint8_t priority = eth_rx_queue_info->priority;
+	uint32_t flow_id;
+	struct rte_event events[BATCH_SIZE];
 	struct rte_mbuf *m = mbufs[0];
 	uint32_t rss_mask;
 	uint32_t rss;
 	int do_rss;
 	uint64_t ts;
+	struct rte_mbuf *cb_mbufs[BATCH_SIZE];
 	uint16_t nb_cb;
-	uint16_t dropped;
 
 	/* 0xffff ffff if PKT_RX_RSS_HASH is set, otherwise 0 */
 	rss_mask = ~(((m->ol_flags & PKT_RX_RSS_HASH) != 0) - 1);
@@ -781,35 +796,41 @@ rxa_buffer_mbufs(struct rte_event_eth_rx_adapter *rx_adapter,
 		}
 	}
 
+
+	nb_cb = dev_info->cb_fn ? dev_info->cb_fn(eth_dev_id, rx_queue_id,
+						ETH_EVENT_BUFFER_SIZE,
+						buf->count, mbufs,
+						num,
+						dev_info->cb_arg,
+						cb_mbufs) :
+						num;
+	if (nb_cb < num) {
+		mbufs = cb_mbufs;
+		num = nb_cb;
+	}
+
 	for (i = 0; i < num; i++) {
 		m = mbufs[i];
+		struct rte_event *ev = &events[i];
 
 		rss = do_rss ?
 			rxa_do_softrss(m, rx_adapter->rss_key_be) :
 			m->hash.rss;
-		ev->event = event;
-		ev->flow_id = (rss & ~flow_id_mask) |
-				(ev->flow_id & flow_id_mask);
+		flow_id =
+		    eth_rx_queue_info->flow_id &
+				eth_rx_queue_info->flow_id_mask;
+		flow_id |= rss & ~eth_rx_queue_info->flow_id_mask;
+		ev->flow_id = flow_id;
+		ev->op = RTE_EVENT_OP_NEW;
+		ev->sched_type = sched_type;
+		ev->queue_id = qid;
+		ev->event_type = RTE_EVENT_TYPE_ETH_RX_ADAPTER;
+		ev->sub_event_type = 0;
+		ev->priority = priority;
 		ev->mbuf = m;
-		ev++;
+
+		rxa_buffer_event(rx_adapter, ev);
 	}
-
-	if (dev_info->cb_fn) {
-
-		dropped = 0;
-		nb_cb = dev_info->cb_fn(eth_dev_id, rx_queue_id,
-					ETH_EVENT_BUFFER_SIZE, buf->count, ev,
-					num, dev_info->cb_arg, &dropped);
-		if (unlikely(nb_cb > num))
-			RTE_EDEV_LOG_ERR("Rx CB returned %d (> %d) events",
-				nb_cb, num);
-		else
-			num = nb_cb;
-		if (dropped)
-			rx_adapter->stats.rx_dropped += dropped;
-	}
-
-	buf->count += num;
 }
 
 /* Enqueue packets from  <port, q>  to event buffer */
@@ -1696,7 +1717,6 @@ rxa_add_queue(struct rte_event_eth_rx_adapter *rx_adapter,
 	int pollq;
 	int intrq;
 	int sintrq;
-	struct rte_event *qi_ev;
 
 	if (rx_queue_id == -1) {
 		uint16_t nb_rx_queues;
@@ -1713,19 +1733,16 @@ rxa_add_queue(struct rte_event_eth_rx_adapter *rx_adapter,
 	sintrq = rxa_shared_intr(dev_info, rx_queue_id);
 
 	queue_info = &dev_info->rx_queue[rx_queue_id];
+	queue_info->event_queue_id = ev->queue_id;
+	queue_info->sched_type = ev->sched_type;
+	queue_info->priority = ev->priority;
 	queue_info->wt = conf->servicing_weight;
-
-	qi_ev = (struct rte_event *)&queue_info->event;
-	qi_ev->event = ev->event;
-	qi_ev->op = RTE_EVENT_OP_NEW;
-	qi_ev->event_type = RTE_EVENT_TYPE_ETH_RX_ADAPTER;
-	qi_ev->sub_event_type = 0;
 
 	if (conf->rx_queue_flags &
 			RTE_EVENT_ETH_RX_ADAPTER_QUEUE_FLOW_ID_VALID) {
+		queue_info->flow_id = ev->flow_id;
 		queue_info->flow_id_mask = ~0;
-	} else
-		qi_ev->flow_id = 0;
+	}
 
 	rxa_update_queue(rx_adapter, dev_info, rx_queue_id, 1);
 	if (rxa_polled_queue(dev_info, rx_queue_id)) {
@@ -1999,8 +2016,6 @@ rte_event_eth_rx_adapter_create_ext(uint8_t id, uint8_t dev_id,
 	event_eth_rx_adapter[id] = rx_adapter;
 	if (conf_cb == rxa_default_conf_cb)
 		rx_adapter->default_cb_arg = 1;
-	rte_eventdev_trace_eth_rx_adapter_create(id, dev_id, conf_cb,
-		conf_arg);
 	return 0;
 }
 
@@ -2050,7 +2065,6 @@ rte_event_eth_rx_adapter_free(uint8_t id)
 	rte_free(rx_adapter);
 	event_eth_rx_adapter[id] = NULL;
 
-	rte_eventdev_trace_eth_rx_adapter_free(id);
 	return 0;
 }
 
@@ -2146,8 +2160,6 @@ rte_event_eth_rx_adapter_queue_add(uint8_t id,
 		rte_spinlock_unlock(&rx_adapter->rx_lock);
 	}
 
-	rte_eventdev_trace_eth_rx_adapter_queue_add(id, eth_dev_id,
-		rx_queue_id, queue_conf, ret);
 	if (ret)
 		return ret;
 
@@ -2269,22 +2281,18 @@ unlock_ret:
 				rxa_sw_adapter_queue_count(rx_adapter));
 	}
 
-	rte_eventdev_trace_eth_rx_adapter_queue_del(id, eth_dev_id,
-		rx_queue_id, ret);
 	return ret;
 }
 
 int
 rte_event_eth_rx_adapter_start(uint8_t id)
 {
-	rte_eventdev_trace_eth_rx_adapter_start(id);
 	return rxa_ctrl(id, 1);
 }
 
 int
 rte_event_eth_rx_adapter_stop(uint8_t id)
 {
-	rte_eventdev_trace_eth_rx_adapter_stop(id);
 	return rxa_ctrl(id, 0);
 }
 
@@ -2375,8 +2383,7 @@ rte_event_eth_rx_adapter_service_id_get(uint8_t id, uint32_t *service_id)
 	return rx_adapter->service_inited ? 0 : -ESRCH;
 }
 
-int
-rte_event_eth_rx_adapter_cb_register(uint8_t id,
+int rte_event_eth_rx_adapter_cb_register(uint8_t id,
 					uint16_t eth_dev_id,
 					rte_event_eth_rx_adapter_cb_fn cb_fn,
 					void *cb_arg)

@@ -54,13 +54,8 @@ To document a public API, a doxygen-like format must be used: refer to :ref:`dox
 License Header
 ~~~~~~~~~~~~~~
 
-Each file must begin with a special comment containing the
-`Software Package Data Exchange (SPDX) License Identfier <https://spdx.org/using-spdx-license-identifier>`_.
-
-Generally this is the BSD License, except for code granted special exceptions.
-The SPDX licences identifier is sufficient, a file should not contain
-an additional text version of the license (boilerplate).
-
+Each file should begin with a special comment containing the appropriate copyright and license for the file.
+Generally this is the BSD License, except for code for Linux Kernel modules.
 After any copyright header, a blank line should be left before any other contents, e.g. include statements in a C file.
 
 C Preprocessor Directives
@@ -808,8 +803,9 @@ lpm, etc. For drivers, the same format of Makefile is used.
 	CFLAGS += -O3
 	CFLAGS += $(WERROR_FLAGS)
 
-	# the symbol version information for the library
+	# the symbol version information for the library, and .so version
 	EXPORT_MAP := rte_<name>_version.map
+	LIBABIVER := 1
 
 	# all source filenames are stored in SRCS-y
 	SRCS-$(CONFIG_RTE_LIBRTE_<NAME>) += rte_<name>.c
@@ -847,18 +843,21 @@ sources
 
 The optional fields are:
 
+allow_experimental_apis
+	**Default Value = false**
+	Used to allow the library to make use of APIs marked as experimental.
+	Set to ``true`` if the C files in the library call any functions
+	marked as experimental in any included header files.
+
 build
 	**Default Value = true**
 	Used to optionally compile a library, based on its dependencies or
-	environment. When set to "false" the ``reason`` value, explained below, should
-	also be set to explain to the user why the component is not being built.
-	A simple example of use would be:
+	environment. A simple example of use would be:
 
 .. code-block:: python
 
-	if not is_linux
+	if host_machine.system() != 'linux'
 	        build = false
-	        reason = 'only supported on Linux'
 	endif
 
 
@@ -939,25 +938,19 @@ objs
 	objects that were compiled up as part of another target given in the
 	included library ``meson.build`` file.
 
-reason
-	**Default Value = '<unknown reason>'**.
-	This variable should be used when a library is not to be built i.e. when
-	``build`` is set to "false", to specify the reason why a library will not be
-	built. For missing dependencies this should be of the form
-	``'missing dependency, "libname"'``.
-
-use_function_versioning
-	**Default Value = false**.
-	Specifies if the library in question has ABI versioned functions. If it
-	has, this value should be set to ensure that the C files are compiled
-	twice with suitable parameters for each of shared or static library
-	builds.
+version
+	**Default Value = 1**.
+	Specifies the ABI version of the library, and is used as the major
+	version number of the resulting ``.so`` library.
 
 Meson Build File Contents - Drivers
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 For drivers, the values are largely the same as for libraries. The variables
 supported are:
+
+allow_experimental_apis
+	As above.
 
 build
 	As above.
@@ -997,9 +990,6 @@ pkgconfig_extra_libs
 	libraries that may need to be linked into the build - especially when
 	using static libraries. Anything added here will be appended to the end
 	of the ``pkgconfig --libs`` output.
-
-reason
-	As above.
 
 sources [mandatory]
 	As above

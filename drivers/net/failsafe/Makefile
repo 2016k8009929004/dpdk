@@ -9,6 +9,8 @@ LIB = librte_pmd_failsafe.a
 
 EXPORT_MAP := rte_pmd_failsafe_version.map
 
+LIBABIVER := 1
+
 # Sources are stored in SRCS-y
 SRCS-$(CONFIG_RTE_LIBRTE_PMD_FAILSAFE) += failsafe.c
 SRCS-$(CONFIG_RTE_LIBRTE_PMD_FAILSAFE) += failsafe_args.c
@@ -18,7 +20,7 @@ SRCS-$(CONFIG_RTE_LIBRTE_PMD_FAILSAFE) += failsafe_rxtx.c
 SRCS-$(CONFIG_RTE_LIBRTE_PMD_FAILSAFE) += failsafe_ether.c
 SRCS-$(CONFIG_RTE_LIBRTE_PMD_FAILSAFE) += failsafe_flow.c
 SRCS-$(CONFIG_RTE_LIBRTE_PMD_FAILSAFE) += failsafe_intr.c
-ifeq ($(CONFIG_RTE_EXEC_ENV_LINUX),y)
+ifeq ($(CONFIG_RTE_EXEC_ENV_LINUXAPP),y)
 CFLAGS += -DLINUX
 else
 CFLAGS += -DBSD
@@ -27,6 +29,7 @@ endif
 # No exported include files
 
 # Basic CFLAGS:
+CFLAGS += -DALLOW_EXPERIMENTAL_API
 CFLAGS += -std=gnu99 -Wextra
 CFLAGS += -O3
 CFLAGS += -I.

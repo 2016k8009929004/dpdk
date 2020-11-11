@@ -40,11 +40,6 @@ do {						\
 		RTE_EVENT_ETH_RX_ADAPTER_CAP_MULTI_EVENTQ | \
 		RTE_EVENT_ETH_RX_ADAPTER_CAP_OVERRIDE_FLOW_ID)
 
-#define RTE_EVENT_CRYPTO_ADAPTER_DPAA_CAP \
-		(RTE_EVENT_CRYPTO_ADAPTER_CAP_INTERNAL_PORT_OP_NEW | \
-		RTE_EVENT_CRYPTO_ADAPTER_CAP_INTERNAL_PORT_QP_EV_BIND | \
-		RTE_EVENT_CRYPTO_ADAPTER_CAP_SESSION_PRIVATE_DATA)
-
 struct dpaa_eventq {
 	/* Channel Id */
 	uint16_t ch_id;
@@ -76,20 +71,4 @@ struct dpaa_eventdev {
 	uint32_t nb_event_port_enqueue_depth;
 	uint32_t event_dev_cfg;
 };
-
-#define DPAA_EVENTDEV_LOG(level, fmt, args...) \
-	rte_log(RTE_LOG_ ## level, dpaa_logtype_eventdev, "%s(): " fmt "\n", \
-		__func__, ##args)
-
-#define EVENTDEV_INIT_FUNC_TRACE() DPAA_EVENTDEV_LOG(DEBUG, " >>")
-
-#define DPAA_EVENTDEV_DEBUG(fmt, args...) \
-	DPAA_EVENTDEV_LOG(DEBUG, fmt, ## args)
-#define DPAA_EVENTDEV_ERR(fmt, args...) \
-	DPAA_EVENTDEV_LOG(ERR, fmt, ## args)
-#define DPAA_EVENTDEV_INFO(fmt, args...) \
-	DPAA_EVENTDEV_LOG(INFO, fmt, ## args)
-#define DPAA_EVENTDEV_WARN(fmt, args...) \
-	DPAA_EVENTDEV_LOG(WARNING, fmt, ## args)
-
 #endif /* __DPAA_EVENTDEV_H__ */

@@ -127,7 +127,7 @@ HPET timers do not work on the Osage customer reference platform
    work correctly, provided the BIOS supports HPET.
 
 **Driver/Module**:
-   ``lib/librte_eal/include/rte_cycles.h``
+   ``lib/librte_eal/common/include/rte_cycles.h``
 
 
 Not all variants of supported NIC types have been used in testing
@@ -861,51 +861,3 @@ AVX-512 support disabled
 
 **Driver/Module**:
     ALL.
-
-
-Unsuitable IOVA mode may be picked as the default
--------------------------------------------------
-
-**Description**
-   Not all kernel drivers and not all devices support all IOVA modes. EAL will
-   attempt to pick a reasonable default based on a number of factors, but there
-   may be cases where the default may be unsuitable (for example, hotplugging
-   devices using `igb_uio` driver while having picked IOVA as VA mode on EAL
-   initialization).
-
-**Implication**
-   Some devices (hotplugged or otherwise) may not work due to incompatible IOVA
-   mode being automatically picked by EAL.
-
-**Resolution/Workaround**:
-   It is possible to force EAL to pick a particular IOVA mode by using the
-   `--iova-mode` command-line parameter. If conflicting requirements are present
-   (such as one device requiring IOVA as PA and one requiring IOVA as VA mode),
-   there is no workaround.
-
-**Affected Environment/Platform**:
-   Linux.
-
-**Driver/Module**:
-   ALL.
-
-Vhost multi-queue reconnection failed with QEMU version >= 4.2.0
-----------------------------------------------------------------
-
-**Description**
-   It's a QEMU regression bug (bad commit: c6beefd674ff). QEMU only saves
-   acked features for one vhost-net when vhost quits. When vhost reconnects
-   to virtio-net/virtio-pmd in multi-queue situations, the features been
-   set multiple times are not consistent.
-
-**Implication**
-   Vhost cannot reconnect back to virtio-net/virtio-pmd normally.
-
-**Resolution/Workaround**:
-   It is possible to filter the incorrect acked features at vhost-user side.
-
-**Affected Environment/Platform**:
-   ALL.
-
-**Driver/Module**:
-   Virtual Device Poll Mode Driver (PMD).

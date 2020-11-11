@@ -1,10 +1,13 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Copyright(c) 2017 Intel Corporation
 
+version = 2
+
 cflags += ['-DPF_DRIVER',
 	'-DVF_DRIVER',
 	'-DINTEGRATED_VF',
-	'-DX722_A0_SUPPORT']
+	'-DX722_A0_SUPPORT',
+	'-DALLOW_EXPERIMENTAL_API']
 
 subdir('base')
 objs = [base_objs]
@@ -32,10 +35,8 @@ if arch_subdir == 'x86'
 	# a. we have AVX supported in minimum instruction set baseline
 	# b. it's not minimum instruction set, but supported by compiler
 	if dpdk_conf.has('RTE_MACHINE_CPUFLAG_AVX2')
-		cflags += ['-DCC_AVX2_SUPPORT']
 		sources += files('i40e_rxtx_vec_avx2.c')
 	elif cc.has_argument('-mavx2')
-		cflags += ['-DCC_AVX2_SUPPORT']
 		i40e_avx2_lib = static_library('i40e_avx2_lib',
 				'i40e_rxtx_vec_avx2.c',
 				dependencies: [static_rte_ethdev,
@@ -44,9 +45,6 @@ if arch_subdir == 'x86'
 				c_args: [cflags, '-mavx2'])
 		objs += i40e_avx2_lib.extract_objects('i40e_rxtx_vec_avx2.c')
 	endif
-elif arch_subdir == 'ppc'
-       dpdk_conf.set('RTE_LIBRTE_I40E_INC_VECTOR', 1)
-       sources += files('i40e_rxtx_vec_altivec.c')
 elif arch_subdir == 'arm'
        dpdk_conf.set('RTE_LIBRTE_I40E_INC_VECTOR', 1)
        sources += files('i40e_rxtx_vec_neon.c')

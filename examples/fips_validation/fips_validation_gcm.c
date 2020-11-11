@@ -34,33 +34,33 @@
 #define NEG_TEST_STR	"FAIL"
 
 struct fips_test_callback gcm_dec_vectors[] = {
-		{KEY_STR, parse_uint8_known_len_hex_str, &vec.aead.key},
+		{KEY_STR, parse_uint8_known_len_hex_str, &vec.cipher_auth.key},
 		{IV_STR, parse_uint8_known_len_hex_str, &vec.iv},
 		{CT_STR, parse_uint8_known_len_hex_str, &vec.ct},
-		{AAD_STR, parse_uint8_known_len_hex_str, &vec.aead.aad},
+		{AAD_STR, parse_uint8_known_len_hex_str, &vec.cipher_auth.aad},
 		{TAG_STR, parse_uint8_known_len_hex_str,
-				&vec.aead.digest},
+				&vec.cipher_auth.digest},
 		{NULL, NULL, NULL} /**< end pointer */
 };
 struct fips_test_callback gcm_interim_vectors[] = {
-		{KEYLEN_STR, parser_read_uint32_bit_val, &vec.aead.key},
+		{KEYLEN_STR, parser_read_uint32_bit_val, &vec.cipher_auth.key},
 		{IVLEN_STR, parser_read_uint32_bit_val, &vec.iv},
 		{PTLEN_STR, parser_read_uint32_bit_val, &vec.pt},
 		{PTLEN_STR, parser_read_uint32_bit_val, &vec.ct},
 		/**< The NIST test vectors use 'PTlen' to denote input text
 		 *  length in case of decrypt & encrypt operations.
 		 */
-		{AADLEN_STR, parser_read_uint32_bit_val, &vec.aead.aad},
+		{AADLEN_STR, parser_read_uint32_bit_val, &vec.cipher_auth.aad},
 		{TAGLEN_STR, parser_read_uint32_bit_val,
-				&vec.aead.digest},
+				&vec.cipher_auth.digest},
 		{NULL, NULL, NULL} /**< end pointer */
 };
 
 struct fips_test_callback gcm_enc_vectors[] = {
-		{KEY_STR, parse_uint8_known_len_hex_str, &vec.aead.key},
+		{KEY_STR, parse_uint8_known_len_hex_str, &vec.cipher_auth.key},
 		{IV_STR, parse_uint8_known_len_hex_str, &vec.iv},
 		{PT_STR, parse_uint8_known_len_hex_str, &vec.pt},
-		{AAD_STR, parse_uint8_known_len_hex_str, &vec.aead.aad},
+		{AAD_STR, parse_uint8_known_len_hex_str, &vec.cipher_auth.aad},
 		{NULL, NULL, NULL} /**< end pointer */
 };
 

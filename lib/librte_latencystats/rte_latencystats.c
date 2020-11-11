@@ -7,7 +7,6 @@
 #include <stdbool.h>
 #include <math.h>
 
-#include <rte_string_fns.h>
 #include <rte_mbuf.h>
 #include <rte_log.h>
 #include <rte_cycles.h>
@@ -211,7 +210,6 @@ rte_latencystats_init(uint64_t app_samp_intvl,
 	const char *ptr_strings[NUM_LATENCY_STATS] = {0};
 	const struct rte_memzone *mz = NULL;
 	const unsigned int flags = 0;
-	int ret;
 
 	if (rte_memzone_lookup(MZ_RTE_LATENCY_STATS))
 		return -EEXIST;
@@ -244,16 +242,7 @@ rte_latencystats_init(uint64_t app_samp_intvl,
 	/** Register Rx/Tx callbacks */
 	RTE_ETH_FOREACH_DEV(pid) {
 		struct rte_eth_dev_info dev_info;
-
-		ret = rte_eth_dev_info_get(pid, &dev_info);
-		if (ret != 0) {
-			RTE_LOG(INFO, LATENCY_STATS,
-				"Error during getting device (port %u) info: %s\n",
-				pid, strerror(-ret));
-
-			continue;
-		}
-
+		rte_eth_dev_info_get(pid, &dev_info);
 		for (qid = 0; qid < dev_info.nb_rx_queues; qid++) {
 			cbs = &rx_cbs[pid][qid];
 			cbs->cb = rte_eth_add_first_rx_callback(pid, qid,
@@ -288,16 +277,7 @@ rte_latencystats_uninit(void)
 	/** De register Rx/Tx callbacks */
 	RTE_ETH_FOREACH_DEV(pid) {
 		struct rte_eth_dev_info dev_info;
-
-		ret = rte_eth_dev_info_get(pid, &dev_info);
-		if (ret != 0) {
-			RTE_LOG(INFO, LATENCY_STATS,
-				"Error during getting device (port %u) info: %s\n",
-				pid, strerror(-ret));
-
-			continue;
-		}
-
+		rte_eth_dev_info_get(pid, &dev_info);
 		for (qid = 0; qid < dev_info.nb_rx_queues; qid++) {
 			cbs = &rx_cbs[pid][qid];
 			ret = rte_eth_remove_rx_callback(pid, qid, cbs->cb);
@@ -333,8 +313,8 @@ rte_latencystats_get_names(struct rte_metric_name *names, uint16_t size)
 		return NUM_LATENCY_STATS;
 
 	for (i = 0; i < NUM_LATENCY_STATS; i++)
-		strlcpy(names[i].name, lat_stats_strings[i].name,
-			sizeof(names[i].name));
+		snprintf(names[i].name, sizeof(names[i].name),
+				"%s", lat_stats_strings[i].name);
 
 	return NUM_LATENCY_STATS;
 }

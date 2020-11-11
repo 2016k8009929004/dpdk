@@ -1,8 +1,12 @@
-/* SPDX-License-Identifier: GPL-2.0
- * Postprocess pmd object files to export hw support
+
+/* Postprocess pmd object files to export hw support
  *
  * Copyright 2016 Neil Horman <nhorman@tuxdriver.com>
  * Based in part on modpost.c from the linux kernel
+ *
+ * This software may be used and distributed according to the terms
+ * of the GNU General Public License V2, incorporated herein by reference.
+ *
  */
 
 #include <stdio.h>
@@ -20,6 +24,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <elf.h>
+#include <rte_config.h>
 #include <rte_pci.h>
 
 /* On BSD-alike OSes elf.h defines these according to host's word size */
@@ -117,3 +122,4 @@ struct elf_info {
 
 	struct pmd_driver *drivers;
 };
+

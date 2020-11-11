@@ -1,7 +1,35 @@
-/* SPDX-License-Identifier: BSD-3-Clause
- * Copyright 2017 Intel Corporation
- * Copyright 2017 NXP
- * Copyright 2017 Cavium
+/*-
+ *   BSD LICENSE
+ *
+ *   Copyright 2017 Intel Corporation
+ *   Copyright 2017 NXP
+ *   Copyright 2017 Cavium
+ *
+ *   Redistribution and use in source and binary forms, with or without
+ *   modification, are permitted provided that the following conditions
+ *   are met:
+ *
+ *     * Redistributions of source code must retain the above copyright
+ *       notice, this list of conditions and the following disclaimer.
+ *     * Redistributions in binary form must reproduce the above copyright
+ *       notice, this list of conditions and the following disclaimer in
+ *       the documentation and/or other materials provided with the
+ *       distribution.
+ *     * Neither the name of Intel Corporation nor the names of its
+ *       contributors may be used to endorse or promote products derived
+ *       from this software without specific prior written permission.
+ *
+ *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 #ifndef __INCLUDE_RTE_MTR_H__
@@ -48,11 +76,20 @@
 #include <stdint.h>
 #include <rte_compat.h>
 #include <rte_common.h>
-#include <rte_meter.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/**
+ * Color
+ */
+enum rte_mtr_color {
+	RTE_MTR_GREEN = 0, /**< Green */
+	RTE_MTR_YELLOW, /**< Yellow */
+	RTE_MTR_RED, /**< Red */
+	RTE_MTR_COLORS /**< Number of colors. */
+};
 
 /**
  * Statistics counter type
@@ -88,10 +125,10 @@ enum rte_mtr_stats_type {
  */
 struct rte_mtr_stats {
 	/** Number of packets passed by the policer (per color). */
-	uint64_t n_pkts[RTE_COLORS];
+	uint64_t n_pkts[RTE_MTR_COLORS];
 
 	/** Number of bytes passed by the policer (per color). */
-	uint64_t n_bytes[RTE_COLORS];
+	uint64_t n_bytes[RTE_MTR_COLORS];
 
 	/** Number of packets dropped by the policer. */
 	uint64_t n_pkts_dropped;
@@ -223,7 +260,7 @@ struct rte_mtr_params {
 	 * at least one yellow or red color element, then the color aware mode
 	 * is configured.
 	 */
-	enum rte_color *dscp_table;
+	enum rte_mtr_color *dscp_table;
 
 	/** Non-zero to enable the meter, zero to disable the meter at the time
 	 * of MTR object creation. Ignored when the meter profile indicated by
@@ -233,7 +270,7 @@ struct rte_mtr_params {
 	int meter_enable;
 
 	/** Policer actions (per meter output color). */
-	enum rte_mtr_policer_action action[RTE_COLORS];
+	enum rte_mtr_policer_action action[RTE_MTR_COLORS];
 
 	/** Set of stats counters to be enabled.
 	 * @see enum rte_mtr_stats_type
@@ -410,8 +447,7 @@ struct rte_mtr_error {
  * @return
  *   0 on success, non-zero error code otherwise.
  */
-__rte_experimental
-int
+int __rte_experimental
 rte_mtr_capabilities_get(uint16_t port_id,
 	struct rte_mtr_capabilities *cap,
 	struct rte_mtr_error *error);
@@ -434,8 +470,7 @@ rte_mtr_capabilities_get(uint16_t port_id,
  * @return
  *   0 on success, non-zero error code otherwise.
  */
-__rte_experimental
-int
+int __rte_experimental
 rte_mtr_meter_profile_add(uint16_t port_id,
 	uint32_t meter_profile_id,
 	struct rte_mtr_meter_profile *profile,
@@ -456,8 +491,7 @@ rte_mtr_meter_profile_add(uint16_t port_id,
  * @return
  *   0 on success, non-zero error code otherwise.
  */
-__rte_experimental
-int
+int __rte_experimental
 rte_mtr_meter_profile_delete(uint16_t port_id,
 	uint32_t meter_profile_id,
 	struct rte_mtr_error *error);
@@ -485,8 +519,7 @@ rte_mtr_meter_profile_delete(uint16_t port_id,
  *
  * @see enum rte_flow_action_type::RTE_FLOW_ACTION_TYPE_METER
  */
-__rte_experimental
-int
+int __rte_experimental
 rte_mtr_create(uint16_t port_id,
 	uint32_t mtr_id,
 	struct rte_mtr_params *params,
@@ -509,8 +542,7 @@ rte_mtr_create(uint16_t port_id,
  * @return
  *   0 on success, non-zero error code otherwise.
  */
-__rte_experimental
-int
+int __rte_experimental
 rte_mtr_destroy(uint16_t port_id,
 	uint32_t mtr_id,
 	struct rte_mtr_error *error);
@@ -537,8 +569,7 @@ rte_mtr_destroy(uint16_t port_id,
  * @return
  *   0 on success, non-zero error code otherwise.
  */
-__rte_experimental
-int
+int __rte_experimental
 rte_mtr_meter_disable(uint16_t port_id,
 	uint32_t mtr_id,
 	struct rte_mtr_error *error);
@@ -559,8 +590,7 @@ rte_mtr_meter_disable(uint16_t port_id,
  * @return
  *   0 on success, non-zero error code otherwise.
  */
-__rte_experimental
-int
+int __rte_experimental
 rte_mtr_meter_enable(uint16_t port_id,
 	uint32_t mtr_id,
 	struct rte_mtr_error *error);
@@ -579,8 +609,7 @@ rte_mtr_meter_enable(uint16_t port_id,
  * @return
  *   0 on success, non-zero error code otherwise.
  */
-__rte_experimental
-int
+int __rte_experimental
 rte_mtr_meter_profile_update(uint16_t port_id,
 	uint32_t mtr_id,
 	uint32_t meter_profile_id,
@@ -604,11 +633,10 @@ rte_mtr_meter_profile_update(uint16_t port_id,
  * @return
  *   0 on success, non-zero error code otherwise.
  */
-__rte_experimental
-int
+int __rte_experimental
 rte_mtr_meter_dscp_table_update(uint16_t port_id,
 	uint32_t mtr_id,
-	enum rte_color *dscp_table,
+	enum rte_mtr_color *dscp_table,
 	struct rte_mtr_error *error);
 
 /**
@@ -631,8 +659,7 @@ rte_mtr_meter_dscp_table_update(uint16_t port_id,
  * @return
  *   0 on success, non-zero error code otherwise.
  */
-__rte_experimental
-int
+int __rte_experimental
 rte_mtr_policer_actions_update(uint16_t port_id,
 	uint32_t mtr_id,
 	uint32_t action_mask,
@@ -657,8 +684,7 @@ rte_mtr_policer_actions_update(uint16_t port_id,
  *
  * @see enum rte_mtr_stats_type
  */
-__rte_experimental
-int
+int __rte_experimental
 rte_mtr_stats_update(uint16_t port_id,
 	uint32_t mtr_id,
 	uint64_t stats_mask,
@@ -689,8 +715,7 @@ rte_mtr_stats_update(uint16_t port_id,
  *
  * @see enum rte_mtr_stats_type
  */
-__rte_experimental
-int
+int __rte_experimental
 rte_mtr_stats_read(uint16_t port_id,
 	uint32_t mtr_id,
 	struct rte_mtr_stats *stats,

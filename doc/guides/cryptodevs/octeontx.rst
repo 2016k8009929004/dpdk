@@ -10,8 +10,8 @@ cryptographic operations to cryptographic accelerator units on
 poll mode driver enqueues the crypto request to this accelerator and dequeues
 the response once the operation is completed.
 
-Supported Symmetric Crypto Algorithms
--------------------------------------
+Supported Algorithms
+--------------------
 
 Cipher Algorithms
 ~~~~~~~~~~~~~~~~~
@@ -52,12 +52,6 @@ AEAD Algorithms
 ~~~~~~~~~~~~~~~
 
 * ``RTE_CRYPTO_AEAD_AES_GCM``
-
-Supported Asymmetric Crypto Algorithms
---------------------------------------
-
-* ``RTE_CRYPTO_ASYM_XFORM_RSA``
-* ``RTE_CRYPTO_ASYM_XFORM_MODEX``
 
 Config flags
 ------------
@@ -126,22 +120,3 @@ OCTEON TX crypto PMD.
 
         ./build/ipsec-secgw --log-level=8 -c 0xff -- -P -p 0x3 -u 0x2 --config
         "(1,0,0),(0,0,0)" -f ep1.cfg
-
-Testing
--------
-
-The symmetric crypto operations on OCTEON TX crypto PMD may be verified by running the test
-application:
-
-.. code-block:: console
-
-        ./test
-        RTE>>cryptodev_octeontx_autotest
-
-The asymmetric crypto operations on OCTEON TX crypto PMD may be verified by running the test
-application:
-
-.. code-block:: console
-
-        ./test
-        RTE>>cryptodev_octeontx_asym_autotest

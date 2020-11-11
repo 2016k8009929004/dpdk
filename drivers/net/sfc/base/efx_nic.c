@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: BSD-3-Clause
  *
- * Copyright(c) 2019-2020 Xilinx, Inc.
- * Copyright(c) 2007-2019 Solarflare Communications Inc.
+ * Copyright (c) 2007-2018 Solarflare Communications Inc.
+ * All rights reserved.
  */
 
 #include "efx.h"
@@ -228,8 +228,7 @@ efx_nic_create(
 		    EFX_FEATURE_PIO_BUFFERS |
 		    EFX_FEATURE_FW_ASSISTED_TSO |
 		    EFX_FEATURE_FW_ASSISTED_TSO_V2 |
-		    EFX_FEATURE_PACKED_STREAM |
-		    EFX_FEATURE_TXQ_CKSUM_OP_DESC;
+		    EFX_FEATURE_PACKED_STREAM;
 		break;
 #endif	/* EFSYS_OPT_HUNTINGTON */
 
@@ -249,8 +248,7 @@ efx_nic_create(
 		    EFX_FEATURE_MCDI_DMA |
 		    EFX_FEATURE_PIO_BUFFERS |
 		    EFX_FEATURE_FW_ASSISTED_TSO_V2 |
-		    EFX_FEATURE_PACKED_STREAM |
-		    EFX_FEATURE_TXQ_CKSUM_OP_DESC;
+		    EFX_FEATURE_PACKED_STREAM;
 		break;
 #endif	/* EFSYS_OPT_MEDFORD */
 
@@ -266,8 +264,7 @@ efx_nic_create(
 		    EFX_FEATURE_MCDI_DMA |
 		    EFX_FEATURE_PIO_BUFFERS |
 		    EFX_FEATURE_FW_ASSISTED_TSO_V2 |
-		    EFX_FEATURE_PACKED_STREAM |
-		    EFX_FEATURE_TXQ_CKSUM_OP_DESC;
+		    EFX_FEATURE_PACKED_STREAM;
 		break;
 #endif	/* EFSYS_OPT_MEDFORD2 */
 
@@ -378,41 +375,6 @@ fail1:
 
 	return (rc);
 }
-
-	__checkReturn	efx_rc_t
-efx_nic_set_drv_version(
-	__inout			efx_nic_t *enp,
-	__in_ecount(length)	char const *verp,
-	__in			size_t length)
-{
-	efx_rc_t rc;
-
-	EFSYS_ASSERT3U(enp->en_magic, ==, EFX_NIC_MAGIC);
-	EFSYS_ASSERT(!(enp->en_mod_flags & EFX_MOD_PROBE));
-
-	/*
-	 * length is the string content length in bytes.
-	 * Accept any content which fits into the version
-	 * buffer, excluding the last byte. This is reserved
-	 * for an appended NUL terminator.
-	 */
-	if (length >= sizeof (enp->en_drv_version)) {
-		rc = E2BIG;
-		goto fail1;
-	}
-
-	(void) memset(enp->en_drv_version, 0,
-	    sizeof (enp->en_drv_version));
-	memcpy(enp->en_drv_version, verp, length);
-
-	return (0);
-
-fail1:
-	EFSYS_PROBE1(fail1, efx_rc_t, rc);
-
-	return (rc);
-}
-
 
 	__checkReturn	efx_rc_t
 efx_nic_get_bar_region(
@@ -630,7 +592,7 @@ fail1:
 
 			const efx_nic_cfg_t *
 efx_nic_cfg_get(
-	__in		const efx_nic_t *enp)
+	__in		efx_nic_t *enp)
 {
 	EFSYS_ASSERT3U(enp->en_magic, ==, EFX_NIC_MAGIC);
 	EFSYS_ASSERT3U(enp->en_mod_flags, &, EFX_MOD_PROBE);

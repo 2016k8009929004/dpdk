@@ -11,6 +11,8 @@ LDLIBS += -lrte_eal -lrte_mempool -lrte_mbuf -lrte_ethdev
 
 EXPORT_MAP := rte_kni_version.map
 
+LIBABIVER := 2
+
 # all source are stored in SRCS-y
 SRCS-$(CONFIG_RTE_LIBRTE_KNI) := rte_kni.c
 

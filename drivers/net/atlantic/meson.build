@@ -9,5 +9,4 @@ sources = files(
 	'hw_atl/hw_atl_llh.c',
 	'hw_atl/hw_atl_utils_fw2x.c',
 	'hw_atl/hw_atl_utils.c',
-	'rte_pmd_atlantic.c',
 )

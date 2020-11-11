@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 #
-# Copyright(c) 2019-2020 Xilinx, Inc.
-# Copyright(c) 2016-2019 Solarflare Communications Inc.
+# Copyright (c) 2016-2018 Solarflare Communications Inc.
+# All rights reserved.
 #
 # This software was jointly developed between OKTET Labs (under contract
 # for Solarflare) and Solarflare Communications, Inc.
@@ -13,6 +13,7 @@ include $(RTE_SDK)/mk/rte.vars.mk
 #
 LIB = librte_pmd_sfc_efx.a
 
+CFLAGS += -DALLOW_EXPERIMENTAL_API
 CFLAGS += -I$(SRCDIR)/base/
 CFLAGS += -I$(SRCDIR)
 CFLAGS += -O3
@@ -61,6 +62,8 @@ $(foreach obj, $(BASE_DRIVER_OBJS), \
 
 EXPORT_MAP := rte_pmd_sfc_version.map
 
+LIBABIVER := 1
+
 #
 # all source are stored in SRCS-y
 #
@@ -86,7 +89,6 @@ VPATH += $(SRCDIR)/base
 SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += efx_bootcfg.c
 SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += efx_crc32.c
 SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += efx_ev.c
-SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += efx_evb.c
 SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += efx_filter.c
 SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += efx_hash.c
 SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += efx_intr.c
@@ -98,7 +100,6 @@ SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += efx_nic.c
 SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += efx_nvram.c
 SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += efx_phy.c
 SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += efx_port.c
-SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += efx_proxy.c
 SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += efx_rx.c
 SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += efx_sram.c
 SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += efx_tunnel.c
@@ -113,7 +114,6 @@ SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += siena_phy.c
 SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += siena_sram.c
 SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += siena_vpd.c
 SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += ef10_ev.c
-SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += ef10_evb.c
 SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += ef10_filter.c
 SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += ef10_intr.c
 SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += ef10_image.c
@@ -122,7 +122,6 @@ SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += ef10_mcdi.c
 SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += ef10_nic.c
 SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += ef10_nvram.c
 SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += ef10_phy.c
-SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += ef10_proxy.c
 SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += ef10_rx.c
 SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += ef10_tx.c
 SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += ef10_vpd.c

@@ -77,13 +77,6 @@ The command line options are:
 
     Set the hexadecimal bitmask of the ports used by the packet forwarding test.
 
-*   ``--portlist=X``
-
-      Set the forwarding ports based on the user input used by the packet forwarding test.
-      '-' denotes a range of ports to set including the two specified port IDs
-      ',' separates multiple port values.
-      Possible examples like --portlist=0,1 or --portlist=0-2 or --portlist=0,1-2 etc
-
 *   ``--numa``
 
     Enable NUMA-aware allocation of RX/TX rings and of RX memory buffers
@@ -119,10 +112,6 @@ The command line options are:
 
     Set the maximum packet size to N bytes, where N >= 64. The default value is 1518.
 
-*   ``--max-lro-pkt-size=N``
-
-    Set the maximum LRO aggregated packet size to N bytes, where N >= 64.
-
 *   ``--eth-peers-configfile=name``
 
     Use a configuration file containing the Ethernet addresses of the peer ports.
@@ -132,23 +121,11 @@ The command line options are:
        XX:XX:XX:XX:XX:02
        ...
 
+
 *   ``--eth-peer=N,XX:XX:XX:XX:XX:XX``
 
     Set the MAC address ``XX:XX:XX:XX:XX:XX`` of the peer port N,
     where 0 <= N < ``CONFIG_RTE_MAX_ETHPORTS`` from the configuration file.
-
-*   ``--tx-ip=SRC,DST``
-
-    Set the source and destination IP address used when doing transmit only test.
-    The defaults address values are source 198.18.0.1 and
-    destination 198.18.0.2. These are special purpose addresses
-    reserved for benchmarking (RFC 5735).
-
-*   ``--tx-udp=SRC[,DST]``
-
-    Set the source and destination UDP port number for transmit test only test.
-    The default port is the port 9 which is defined for the discard protocol
-    (RFC 863).
 
 *   ``--pkt-filter-mode=mode``
 
@@ -209,10 +186,6 @@ The command line options are:
 
     Enable hardware VLAN extend.
 
-*   ``--enable-hw-qinq-strip``
-
-    Enable hardware QINQ strip.
-
 *   ``--enable-drop-en``
 
     Enable per-queue packet drop for packets with no descriptors.
@@ -248,7 +221,6 @@ The command line options are:
        ieee1588
        tm
        noisy
-       5tswap
 
 *   ``--rss-ip``
 
@@ -277,17 +249,6 @@ The command line options are:
 
     Set the number of descriptors in the TX rings to N, where N > 0.
     The default value is 512.
-
-*   ``--hairpinq=N``
-
-    Set the number of hairpin queues per port to N, where 1 <= N <= 65535.
-    The default value is 0. The number of hairpin queues are added to the
-    number of TX queues and to the number of RX queues. then the first
-    RX hairpin is binded to the first TX hairpin, the second RX hairpin is
-    binded to the second TX hairpin and so on. The index of the first
-    RX hairpin queue is the number of RX queues as configured using --rxq.
-    The index of the first TX hairpin queue is the number of TX queues
-    as configured using --txq.
 
 *   ``--burst=N``
 
@@ -363,19 +324,9 @@ The command line options are:
     Set TX segment sizes or total packet length. Valid for ``tx-only``
     and ``flowgen`` forwarding modes.
 
-*   ``--txonly-multi-flow``
-
-    Generate multiple flows in txonly mode.
-
 *   ``--disable-link-check``
 
     Disable check on link status when starting/stopping ports.
-
-*   ``--disable-device-start``
-
-    Do not automatically start all ports. This allows testing
-    configuration of rx and tx queues before device is started
-    for the first time.
 
 *   ``--no-lsc-interrupt``
 
@@ -389,12 +340,12 @@ The command line options are:
 
     Set the logical core N to perform bitrate calculation.
 
-*   ``--print-event <unknown|intr_lsc|queue_state|intr_reset|vf_mbox|macsec|intr_rmv|dev_probed|dev_released|flow_aged|all>``
+*   ``--print-event <unknown|intr_lsc|queue_state|intr_reset|vf_mbox|macsec|intr_rmv|dev_probed|dev_released|all>``
 
     Enable printing the occurrence of the designated event. Using all will
     enable all of them.
 
-*   ``--mask-event <unknown|intr_lsc|queue_state|intr_reset|vf_mbox|macsec|intr_rmv|dev_probed|dev_released|flow_aged|all>``
+*   ``--mask-event <unknown|intr_lsc|queue_state|intr_reset|vf_mbox|macsec|intr_rmv|dev_probed|dev_released|all>``
 
     Disable printing the occurrence of the designated event. Using all will
     disable all of them.
@@ -410,11 +361,6 @@ The command line options are:
 *   ``--tx-offloads=0xXXXXXXXX``
 
     Set the hexadecimal bitmask of TX queue offloads.
-    The default value is 0.
-
-*   ``--rx-offloads=0xXXXXXXXX``
-
-    Set the hexadecimal bitmask of RX queue offloads.
     The default value is 0.
 
 *   ``--hot-plug``
@@ -477,15 +423,3 @@ The command line options are:
 
     Set the number of r/w accesses to be done in noisy neighbor simulation memory buffer to N.
     Only available with the noisy forwarding mode. The default value is 0.
-
-*   ``--no-iova-contig``
-
-    Enable to create mempool which is not IOVA contiguous. Valid only with --mp-alloc=anon.
-    The default value is 0.
-
-*   ``--rx-mq-mode``
-
-    Set the hexadecimal bitmask of RX multi queue mode which can be enabled.
-    The default value is 0x7::
-
-       ETH_MQ_RX_RSS_FLAG | ETH_MQ_RX_DCB_FLAG | ETH_MQ_RX_VMDQ_FLAG

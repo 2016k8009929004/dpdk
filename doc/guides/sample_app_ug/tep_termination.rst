@@ -94,7 +94,7 @@ Compiling the Sample Code
 -------------------------
 
 To enable vhost, turn on vhost library in the configure file
-``config/common_linux``.
+``config/common_linuxapp``.
 
     .. code-block:: console
 

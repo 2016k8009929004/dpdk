@@ -1,4 +1,4 @@
-DPDK_20.0 {
+DPDK_17.11 {
 	global:
 
 	rte_member_add;

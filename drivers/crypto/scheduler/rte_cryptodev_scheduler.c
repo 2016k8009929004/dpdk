@@ -1,7 +1,6 @@
 /* SPDX-License-Identifier: BSD-3-Clause
  * Copyright(c) 2017 Intel Corporation
  */
-#include <rte_string_fns.h>
 #include <rte_reorder.h>
 #include <rte_cryptodev.h>
 #include <rte_cryptodev_pmd.h>
@@ -9,6 +8,8 @@
 
 #include "rte_cryptodev_scheduler.h"
 #include "scheduler_pmd_private.h"
+
+int scheduler_logtype_driver;
 
 /** update the scheduler pmd's capability with attaching device's
  *  capability.
@@ -442,7 +443,8 @@ rte_cryptodev_scheduler_load_user_scheduler(uint8_t scheduler_id,
 				RTE_CRYPTODEV_NAME_MAX_LEN);
 		return -EINVAL;
 	}
-	strlcpy(sched_ctx->name, scheduler->name, sizeof(sched_ctx->name));
+	snprintf(sched_ctx->name, sizeof(sched_ctx->name), "%s",
+			scheduler->name);
 
 	if (strlen(scheduler->description) >
 			RTE_CRYPTODEV_SCHEDULER_DESC_MAX_LEN - 1) {
@@ -451,8 +453,8 @@ rte_cryptodev_scheduler_load_user_scheduler(uint8_t scheduler_id,
 				RTE_CRYPTODEV_SCHEDULER_DESC_MAX_LEN - 1);
 		return -EINVAL;
 	}
-	strlcpy(sched_ctx->description, scheduler->description,
-		sizeof(sched_ctx->description));
+	snprintf(sched_ctx->description, sizeof(sched_ctx->description), "%s",
+			scheduler->description);
 
 	/* load scheduler instance operations functions */
 	sched_ctx->ops.config_queue_pair = scheduler->ops->config_queue_pair;
@@ -576,5 +578,7 @@ rte_cryptodev_scheduler_option_get(uint8_t scheduler_id,
 	return (*sched_ctx->ops.option_get)(dev, option_type, option);
 }
 
-
-RTE_LOG_REGISTER(scheduler_logtype_driver, pmd.crypto.scheduler, INFO);
+RTE_INIT(scheduler_init_log)
+{
+	scheduler_logtype_driver = rte_log_register("pmd.crypto.scheduler");
+}

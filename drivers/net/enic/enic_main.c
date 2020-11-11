@@ -79,7 +79,7 @@ static void enic_free_wq_buf(struct rte_mbuf **buf)
 static void enic_log_q_error(struct enic *enic)
 {
 	unsigned int i;
-	uint32_t error_status;
+	u32 error_status;
 
 	for (i = 0; i < enic->wq_count; i++) {
 		error_status = vnic_wq_error_status(&enic->wq[i]);
@@ -115,18 +115,11 @@ static void enic_init_soft_stats(struct enic *enic)
 	enic_clear_soft_stats(enic);
 }
 
-int enic_dev_stats_clear(struct enic *enic)
+void enic_dev_stats_clear(struct enic *enic)
 {
-	int ret;
-
-	ret = vnic_dev_stats_clear(enic->vdev);
-	if (ret != 0) {
+	if (vnic_dev_stats_clear(enic->vdev))
 		dev_err(enic, "Error in clearing stats\n");
-		return ret;
-	}
 	enic_clear_soft_stats(enic);
-
-	return 0;
 }
 
 int enic_dev_stats_get(struct enic *enic, struct rte_eth_stats *r_stats)
@@ -222,12 +215,13 @@ void enic_init_vnic_resources(struct enic *enic)
 			error_interrupt_enable,
 			error_interrupt_offset);
 
-		data_rq = &enic->rq[enic_rte_rq_idx_to_data_idx(index, enic)];
+		data_rq = &enic->rq[enic_rte_rq_idx_to_data_idx(index)];
 		if (data_rq->in_use)
 			vnic_rq_init(data_rq,
 				     cq_idx,
 				     error_interrupt_enable,
 				     error_interrupt_offset);
+
 		vnic_cq_init(&enic->cq[cq_idx],
 			0 /* flow_control_enable */,
 			1 /* color_enable */,
@@ -263,7 +257,7 @@ void enic_init_vnic_resources(struct enic *enic)
 			0 /* cq_entry_enable */,
 			1 /* cq_message_enable */,
 			0 /* interrupt offset */,
-			(uint64_t)enic->wq[index].cqmsg_rz->iova);
+			(u64)enic->wq[index].cqmsg_rz->iova);
 	}
 
 	for (index = 0; index < enic->intr_count; index++) {
@@ -356,9 +350,9 @@ enic_initial_post_rx(struct enic *enic, struct vnic_rq *rq)
 	rq->need_initial_post = false;
 }
 
-void *
+static void *
 enic_alloc_consistent(void *priv, size_t size,
-	dma_addr_t *dma_handle, uint8_t *name)
+	dma_addr_t *dma_handle, u8 *name)
 {
 	void *vaddr;
 	const struct rte_memzone *rz;
@@ -367,7 +361,7 @@ enic_alloc_consistent(void *priv, size_t size,
 	struct enic_memzone_entry *mze;
 
 	rz = rte_memzone_reserve_aligned((const char *)name, size,
-			SOCKET_ID_ANY, RTE_MEMZONE_IOVA_CONTIG, ENIC_PAGE_SIZE);
+			SOCKET_ID_ANY, RTE_MEMZONE_IOVA_CONTIG, ENIC_ALIGN);
 	if (!rz) {
 		pr_err("%s : Failed to allocate memory requested for %s\n",
 			__func__, name);
@@ -396,7 +390,7 @@ enic_alloc_consistent(void *priv, size_t size,
 	return vaddr;
 }
 
-void
+static void
 enic_free_consistent(void *priv,
 		     __rte_unused size_t size,
 		     void *vaddr,
@@ -544,10 +538,10 @@ void enic_pick_rx_handler(struct rte_eth_dev *eth_dev)
 	if (enic_use_vector_rx_handler(eth_dev))
 		return;
 	if (enic->rq_count > 0 && enic->rq[0].data_queue_enable == 0) {
-		ENICPMD_LOG(DEBUG, " use the non-scatter Rx handler");
+		PMD_INIT_LOG(DEBUG, " use the non-scatter Rx handler");
 		eth_dev->rx_pkt_burst = &enic_noscatter_recv_pkts;
 	} else {
-		ENICPMD_LOG(DEBUG, " use the normal Rx handler");
+		PMD_INIT_LOG(DEBUG, " use the normal Rx handler");
 		eth_dev->rx_pkt_burst = &enic_recv_pkts;
 	}
 }
@@ -558,10 +552,10 @@ void enic_pick_tx_handler(struct rte_eth_dev *eth_dev)
 	struct enic *enic = pmd_priv(eth_dev);
 
 	if (enic->use_simple_tx_handler) {
-		ENICPMD_LOG(DEBUG, " use the simple tx handler");
+		PMD_INIT_LOG(DEBUG, " use the simple tx handler");
 		eth_dev->tx_pkt_burst = &enic_simple_xmit_pkts;
 	} else {
-		ENICPMD_LOG(DEBUG, " use the default tx handler");
+		PMD_INIT_LOG(DEBUG, " use the default tx handler");
 		eth_dev->tx_pkt_burst = &enic_xmit_pkts;
 	}
 }
@@ -608,9 +602,6 @@ int enic_enable(struct enic *enic)
 		dev_warning(enic, "Init of hash table for clsf failed."\
 			"Flow director feature will not work\n");
 
-	if (enic_fm_init(enic))
-		dev_warning(enic, "Init of flowman failed.\n");
-
 	for (index = 0; index < enic->rq_count; index++) {
 		err = enic_alloc_rx_queue_mbufs(enic,
 			&enic->rq[enic_rte_rq_idx_to_sop_idx(index)]);
@@ -619,7 +610,7 @@ int enic_enable(struct enic *enic)
 			return err;
 		}
 		err = enic_alloc_rx_queue_mbufs(enic,
-			&enic->rq[enic_rte_rq_idx_to_data_idx(index, enic)]);
+			&enic->rq[enic_rte_rq_idx_to_data_idx(index)]);
 		if (err) {
 			/* release the allocated mbufs for the sop rq*/
 			enic_rxmbuf_queue_release(enic,
@@ -642,13 +633,13 @@ int enic_enable(struct enic *enic)
 		 DEV_TX_OFFLOAD_TCP_CKSUM);
 	if ((eth_dev->data->dev_conf.txmode.offloads &
 	     ~simple_tx_offloads) == 0) {
-		ENICPMD_LOG(DEBUG, " use the simple tx handler");
+		PMD_INIT_LOG(DEBUG, " use the simple tx handler");
 		eth_dev->tx_pkt_burst = &enic_simple_xmit_pkts;
 		for (index = 0; index < enic->wq_count; index++)
 			enic_prep_wq_for_simple_tx(enic, index);
 		enic->use_simple_tx_handler = 1;
 	} else {
-		ENICPMD_LOG(DEBUG, " use the default tx handler");
+		PMD_INIT_LOG(DEBUG, " use the default tx handler");
 		eth_dev->tx_pkt_burst = &enic_xmit_pkts;
 	}
 
@@ -807,7 +798,7 @@ int enic_alloc_rq(struct enic *enic, uint16_t queue_idx,
 {
 	int rc;
 	uint16_t sop_queue_idx = enic_rte_rq_idx_to_sop_idx(queue_idx);
-	uint16_t data_queue_idx = enic_rte_rq_idx_to_data_idx(queue_idx, enic);
+	uint16_t data_queue_idx = enic_rte_rq_idx_to_data_idx(queue_idx);
 	struct vnic_rq *rq_sop = &enic->rq[sop_queue_idx];
 	struct vnic_rq *rq_data = &enic->rq[data_queue_idx];
 	unsigned int mbuf_size, mbufs_per_pkt;
@@ -1009,7 +1000,7 @@ int enic_alloc_wq(struct enic *enic, uint16_t queue_idx,
 	int err;
 	struct vnic_wq *wq = &enic->wq[queue_idx];
 	unsigned int cq_index = enic_cq_wq(enic, queue_idx);
-	char name[RTE_MEMZONE_NAMESIZE];
+	char name[NAME_MAX];
 	static int instance;
 
 	wq->socket_id = socket_id;
@@ -1043,7 +1034,7 @@ int enic_alloc_wq(struct enic *enic, uint16_t queue_idx,
 
 	wq->cqmsg_rz = rte_memzone_reserve_aligned((const char *)name,
 			sizeof(uint32_t), SOCKET_ID_ANY,
-			RTE_MEMZONE_IOVA_CONTIG, ENIC_PAGE_SIZE);
+			RTE_MEMZONE_IOVA_CONTIG, ENIC_ALIGN);
 	if (!wq->cqmsg_rz)
 		return -ENOMEM;
 
@@ -1068,7 +1059,6 @@ int enic_disable(struct enic *enic)
 	vnic_dev_disable(enic->vdev);
 
 	enic_clsf_destroy(enic);
-	enic_fm_destroy(enic);
 
 	if (!enic_is_sriov_vf(enic))
 		vnic_dev_del_addr(enic->vdev, enic->mac_addr);
@@ -1153,10 +1143,10 @@ static int enic_set_rsskey(struct enic *enic, uint8_t *user_key)
 	dma_addr_t rss_key_buf_pa;
 	union vnic_rss_key *rss_key_buf_va = NULL;
 	int err, i;
-	uint8_t name[RTE_MEMZONE_NAMESIZE];
+	u8 name[NAME_MAX];
 
 	RTE_ASSERT(user_key != NULL);
-	snprintf((char *)name, sizeof(name), "rss_key-%s", enic->bdf_name);
+	snprintf((char *)name, NAME_MAX, "rss_key-%s", enic->bdf_name);
 	rss_key_buf_va = enic_alloc_consistent(enic, sizeof(union vnic_rss_key),
 		&rss_key_buf_pa, name);
 	if (!rss_key_buf_va)
@@ -1185,9 +1175,9 @@ int enic_set_rss_reta(struct enic *enic, union vnic_rss_cpu *rss_cpu)
 	dma_addr_t rss_cpu_buf_pa;
 	union vnic_rss_cpu *rss_cpu_buf_va = NULL;
 	int err;
-	uint8_t name[RTE_MEMZONE_NAMESIZE];
+	u8 name[NAME_MAX];
 
-	snprintf((char *)name, sizeof(name), "rss_cpu-%s", enic->bdf_name);
+	snprintf((char *)name, NAME_MAX, "rss_cpu-%s", enic->bdf_name);
 	rss_cpu_buf_va = enic_alloc_consistent(enic, sizeof(union vnic_rss_cpu),
 		&rss_cpu_buf_pa, name);
 	if (!rss_cpu_buf_va)
@@ -1208,11 +1198,10 @@ int enic_set_rss_reta(struct enic *enic, union vnic_rss_cpu *rss_cpu)
 	return err;
 }
 
-static int enic_set_niccfg(struct enic *enic, uint8_t rss_default_cpu,
-	uint8_t rss_hash_type, uint8_t rss_hash_bits, uint8_t rss_base_cpu,
-	uint8_t rss_enable)
+static int enic_set_niccfg(struct enic *enic, u8 rss_default_cpu,
+	u8 rss_hash_type, u8 rss_hash_bits, u8 rss_base_cpu, u8 rss_enable)
 {
-	const uint8_t tso_ipid_split_en = 0;
+	const u8 tso_ipid_split_en = 0;
 	int err;
 
 	err = enic_set_nic_cfg(enic,
@@ -1308,8 +1297,8 @@ int enic_set_rss_conf(struct enic *enic, struct rte_eth_rss_conf *rss_conf)
 {
 	struct rte_eth_dev *eth_dev;
 	uint64_t rss_hf;
-	uint8_t rss_hash_type;
-	uint8_t rss_enable;
+	u8 rss_hash_type;
+	u8 rss_enable;
 	int ret;
 
 	RTE_ASSERT(rss_conf != NULL);
@@ -1391,10 +1380,10 @@ int enic_set_vlan_strip(struct enic *enic)
 			       enic->rss_enable);
 }
 
-int enic_add_packet_filter(struct enic *enic)
+void enic_add_packet_filter(struct enic *enic)
 {
 	/* Args -> directed, multicast, broadcast, promisc, allmulti */
-	return vnic_dev_packet_filter(enic->vdev, 1, 1, 1,
+	vnic_dev_packet_filter(enic->vdev, 1, 1, 1,
 		enic->promisc, enic->allmulti);
 }
 
@@ -1405,10 +1394,12 @@ int enic_get_link_status(struct enic *enic)
 
 static void enic_dev_deinit(struct enic *enic)
 {
+	struct rte_eth_dev *eth_dev = enic->rte_dev;
+
 	/* stop link status checking */
 	vnic_dev_notify_unset(enic->vdev);
 
-	/* mac_addrs is freed by rte_eth_dev_release_port() */
+	rte_free(eth_dev->data->mac_addrs);
 	rte_free(enic->cq);
 	rte_free(enic->intr);
 	rte_free(enic->rq);
@@ -1474,7 +1465,7 @@ enic_reinit_rq(struct enic *enic, unsigned int rq_idx)
 	int rc = 0;
 
 	sop_rq = &enic->rq[enic_rte_rq_idx_to_sop_idx(rq_idx)];
-	data_rq = &enic->rq[enic_rte_rq_idx_to_data_idx(rq_idx, enic)];
+	data_rq = &enic->rq[enic_rte_rq_idx_to_data_idx(rq_idx)];
 	cq_idx = rq_idx;
 
 	vnic_cq_clean(&enic->cq[cq_idx]);
@@ -1497,8 +1488,8 @@ enic_reinit_rq(struct enic *enic, unsigned int rq_idx)
 	if (data_rq->in_use) {
 		vnic_rq_init_start(data_rq,
 				   enic_cq_rq(enic,
-				   enic_rte_rq_idx_to_data_idx(rq_idx, enic)),
-				   0, data_rq->ring.desc_count - 1, 1, 0);
+				   enic_rte_rq_idx_to_data_idx(rq_idx)), 0,
+				   data_rq->ring.desc_count - 1, 1, 0);
 	}
 
 	rc = enic_alloc_rx_queue_mbufs(enic, sop_rq);
@@ -1693,14 +1684,13 @@ static int enic_dev_init(struct enic *enic)
 	/* Get the supported filters */
 	enic_fdir_info(enic);
 
-	eth_dev->data->mac_addrs = rte_zmalloc("enic_mac_addr",
-					sizeof(struct rte_ether_addr) *
-					ENIC_UNICAST_PERFECT_FILTERS, 0);
+	eth_dev->data->mac_addrs = rte_zmalloc("enic_mac_addr", ETH_ALEN
+						* ENIC_MAX_MAC_ADDR, 0);
 	if (!eth_dev->data->mac_addrs) {
 		dev_err(enic, "mac addr storage alloc failed, aborting.\n");
 		return -1;
 	}
-	rte_ether_addr_copy((struct rte_ether_addr *)enic->mac_addr,
+	ether_addr_copy((struct ether_addr *) enic->mac_addr,
 			eth_dev->data->mac_addrs);
 
 	vnic_dev_set_reset_flag(enic->vdev, 0);
@@ -1710,19 +1700,6 @@ static int enic_dev_init(struct enic *enic)
 	/* set up link status checking */
 	vnic_dev_notify_set(enic->vdev, -1); /* No Intr for notify */
 
-	/*
-	 * When Geneve with options offload is available, always disable it
-	 * first as it can interfere with user flow rules.
-	 */
-	if (enic->geneve_opt_avail) {
-		/*
-		 * Disabling fails if the feature is provisioned but
-		 * not enabled. So ignore result and do not log error.
-		 */
-		vnic_dev_overlay_offload_ctrl(enic->vdev,
-			OVERLAY_FEATURE_GENEVE,
-			OVERLAY_OFFLOAD_DISABLE);
-	}
 	enic->overlay_offload = false;
 	if (enic->disable_overlay && enic->vxlan) {
 		/*
@@ -1754,32 +1731,20 @@ static int enic_dev_init(struct enic *enic)
 		enic->overlay_offload = true;
 		dev_info(enic, "Overlay offload is enabled\n");
 	}
-	/* Geneve with options offload requires overlay offload */
-	if (enic->overlay_offload && enic->geneve_opt_avail &&
-	    enic->geneve_opt_request) {
-		if (vnic_dev_overlay_offload_ctrl(enic->vdev,
-				OVERLAY_FEATURE_GENEVE,
-				OVERLAY_OFFLOAD_ENABLE)) {
-			dev_err(enic, "failed to enable geneve+option\n");
-		} else {
-			enic->geneve_opt_enabled = 1;
-			dev_info(enic, "Geneve with options is enabled\n");
-		}
-	}
 	/*
 	 * Reset the vxlan port if HW vxlan parsing is available. It
 	 * is always enabled regardless of overlay offload
 	 * enable/disable.
 	 */
 	if (enic->vxlan) {
-		enic->vxlan_port = RTE_VXLAN_DEFAULT_PORT;
+		enic->vxlan_port = ENIC_DEFAULT_VXLAN_PORT;
 		/*
 		 * Reset the vxlan port to the default, as the NIC firmware
 		 * does not reset it automatically and keeps the old setting.
 		 */
 		if (vnic_dev_overlay_offload_cfg(enic->vdev,
 						 OVERLAY_CFG_VXLAN_PORT_UPDATE,
-						 RTE_VXLAN_DEFAULT_PORT)) {
+						 ENIC_DEFAULT_VXLAN_PORT)) {
 			dev_err(enic, "failed to update vxlan port\n");
 			return -EINVAL;
 		}
@@ -1794,7 +1759,7 @@ int enic_probe(struct enic *enic)
 	struct rte_pci_device *pdev = enic->pdev;
 	int err = -1;
 
-	dev_debug(enic, "Initializing ENIC PMD\n");
+	dev_debug(enic, " Initializing ENIC PMD\n");
 
 	/* if this is a secondary process the hardware is already initialized */
 	if (rte_eal_process_type() != RTE_PROC_PRIMARY)

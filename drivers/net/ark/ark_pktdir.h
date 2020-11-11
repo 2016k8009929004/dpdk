@@ -26,7 +26,7 @@ struct ark_pkt_dir_regs {
 	uint32_t ctrl;
 	uint32_t status;
 	uint32_t stall_cnt;
-} __rte_packed;
+} __attribute__ ((packed));
 
 struct ark_pkt_dir_inst {
 	volatile struct ark_pkt_dir_regs *regs;

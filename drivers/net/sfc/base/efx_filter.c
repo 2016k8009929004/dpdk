@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: BSD-3-Clause
  *
- * Copyright(c) 2019-2020 Xilinx, Inc.
- * Copyright(c) 2007-2019 Solarflare Communications Inc.
+ * Copyright (c) 2007-2018 Solarflare Communications Inc.
+ * All rights reserved.
  */
 
 #include "efx.h"
@@ -56,7 +56,7 @@ static const efx_filter_ops_t	__efx_filter_siena_ops = {
 };
 #endif /* EFSYS_OPT_SIENA */
 
-#if EFX_OPTS_EF10()
+#if EFSYS_OPT_HUNTINGTON || EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2
 static const efx_filter_ops_t	__efx_filter_ef10_ops = {
 	ef10_filter_init,		/* efo_init */
 	ef10_filter_fini,		/* efo_fini */
@@ -66,7 +66,7 @@ static const efx_filter_ops_t	__efx_filter_ef10_ops = {
 	ef10_filter_supported_filters,	/* efo_supported_filters */
 	ef10_filter_reconfigure,	/* efo_reconfigure */
 };
-#endif /* EFX_OPTS_EF10() */
+#endif /* EFSYS_OPT_HUNTINGTON || EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2 */
 
 	__checkReturn	efx_rc_t
 efx_filter_insert(

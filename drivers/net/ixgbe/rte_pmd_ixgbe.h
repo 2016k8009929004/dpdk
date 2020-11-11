@@ -44,7 +44,7 @@ int rte_pmd_ixgbe_ping_vf(uint16_t port, uint16_t vf);
  *   - (-EINVAL) if *vf* or *mac_addr* is invalid.
  */
 int rte_pmd_ixgbe_set_vf_mac_addr(uint16_t port, uint16_t vf,
-		struct rte_ether_addr *mac_addr);
+		struct ether_addr *mac_addr);
 
 /**
  * Enable/Disable VF VLAN anti spoofing.
@@ -586,8 +586,7 @@ int rte_pmd_ixgbe_bypass_wd_reset(uint16_t port);
  *   - (-ENODEV) if *port* invalid.
  *   - (IXGBE_ERR_SWFW_SYNC) If sw/fw semaphore acquisition failed
  */
-__rte_experimental
-int
+int __rte_experimental
 rte_pmd_ixgbe_mdio_lock(uint16_t port);
 
 /**
@@ -600,8 +599,7 @@ rte_pmd_ixgbe_mdio_lock(uint16_t port);
  *   - (-ENOTSUP) if hardware doesn't support.
  *   - (-ENODEV) if *port* invalid.
  */
-__rte_experimental
-int
+int __rte_experimental
 rte_pmd_ixgbe_mdio_unlock(uint16_t port);
 
 /**
@@ -622,8 +620,7 @@ rte_pmd_ixgbe_mdio_unlock(uint16_t port);
  *   - (-ENODEV) if *port* invalid.
  *   - (IXGBE_ERR_PHY) If PHY read command failed
  */
-__rte_experimental
-int
+int __rte_experimental
 rte_pmd_ixgbe_mdio_unlocked_read(uint16_t port, uint32_t reg_addr,
 				 uint32_t dev_type, uint16_t *phy_data);
 
@@ -646,8 +643,7 @@ rte_pmd_ixgbe_mdio_unlocked_read(uint16_t port, uint32_t reg_addr,
  *   - (-ENODEV) if *port* invalid.
  *   - (IXGBE_ERR_PHY) If PHY read command failed
  */
-__rte_experimental
-int
+int __rte_experimental
 rte_pmd_ixgbe_mdio_unlocked_write(uint16_t port, uint32_t reg_addr,
 				  uint32_t dev_type, uint16_t phy_data);
 
@@ -725,40 +721,6 @@ enum {
  *   - (-ENODEV) if *port* invalid.
  *   - (-ENOTSUP) if hardware doesn't support this feature.
  */
-__rte_experimental
-int
+int __rte_experimental
 rte_pmd_ixgbe_upd_fctrl_sbp(uint16_t port, int enable);
-
-/**
- * Get port fdir info
- *
- * @param port
- *   The port identifier of the Ethernet device.
- * @param fdir_info
- *   The fdir info of the port
- * @return
- *   - (0) if successful.
- *   - (-ENODEV) if *port* invalid.
- *   - (-ENOTSUP) if operation not supported.
- */
-__rte_experimental
-int
-rte_pmd_ixgbe_get_fdir_info(uint16_t port, struct rte_eth_fdir_info *fdir_info);
-
-/**
- * Get port fdir status
- *
- * @param port
- *   The port identifier of the Ethernet device.
- * @param fdir_stats
- *   The fdir status of the port
- * @return
- *   - (0) if successful.
- *   - (-ENODEV) if *port* invalid.
- *   - (-ENOTSUP) if operation not supported.
- */
-__rte_experimental
-int
-rte_pmd_ixgbe_get_fdir_stats(uint16_t port,
-			     struct rte_eth_fdir_stats *fdir_stats);
 #endif /* _PMD_IXGBE_H_ */

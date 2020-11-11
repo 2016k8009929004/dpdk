@@ -1,13 +1,11 @@
 /* SPDX-License-Identifier: (BSD-3-Clause OR GPL-2.0)
  *
  * Copyright 2013-2015 Freescale Semiconductor Inc.
- * Copyright 2017-2019 NXP
+ * Copyright 2017 NXP
  *
  */
 #ifndef __FSL_DPMNG_H
 #define __FSL_DPMNG_H
-
-#include <rte_compat.h>
 
 /*
  * Management Complex General API
@@ -20,7 +18,7 @@ struct fsl_mc_io;
  * Management Complex firmware version information
  */
 #define MC_VER_MAJOR 10
-#define MC_VER_MINOR 18
+#define MC_VER_MINOR 10
 
 /**
  * struct mc_version
@@ -36,7 +34,6 @@ struct mc_version {
 	uint32_t revision;
 };
 
-__rte_internal
 int mc_get_version(struct fsl_mc_io *mc_io,
 		   uint32_t cmd_flags,
 		   struct mc_version *mc_ver_info);
@@ -51,7 +48,6 @@ struct mc_soc_version {
 	uint32_t pvr;
 };
 
-__rte_internal
 int mc_get_soc_version(struct fsl_mc_io *mc_io,
 		       uint32_t cmd_flags,
 		       struct mc_soc_version *mc_platform_info);

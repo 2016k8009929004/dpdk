@@ -16,7 +16,7 @@ extern "C" {
  * GRE Header
  */
 __extension__
-struct rte_gre_hdr {
+struct gre_hdr {
 #if RTE_BYTE_ORDER == RTE_LITTLE_ENDIAN
 	uint16_t res2:4; /**< Reserved */
 	uint16_t s:1;    /**< Sequence Number Present bit */
@@ -35,7 +35,7 @@ struct rte_gre_hdr {
 	uint16_t ver:3;  /**< Version Number */
 #endif
 	uint16_t proto;  /**< Protocol Type */
-} __rte_packed;
+} __attribute__((__packed__));
 
 #ifdef __cplusplus
 }

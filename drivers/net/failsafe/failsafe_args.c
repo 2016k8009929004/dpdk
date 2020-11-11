@@ -102,7 +102,7 @@ fs_execute_cmd(struct sub_device *sdev, char *cmdline)
 			ERROR("Command line allocation failed");
 			return -ENOMEM;
 		}
-		strlcpy(sdev->cmdline, cmdline, len);
+		snprintf(sdev->cmdline, len, "%s", cmdline);
 		/* Replace all commas in the command line by spaces */
 		for (i = 0; i < len; i++)
 			if (sdev->cmdline[i] == ',')
@@ -367,12 +367,16 @@ static int
 fs_get_mac_addr_arg(const char *key __rte_unused,
 		const char *value, void *out)
 {
-	struct rte_ether_addr *ea = out;
+	struct ether_addr *ea = out;
+	int ret;
 
 	if ((value == NULL) || (out == NULL))
 		return -EINVAL;
-
-	return rte_ether_unformat_addr(value, ea);
+	ret = sscanf(value, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx",
+		&ea->addr_bytes[0], &ea->addr_bytes[1],
+		&ea->addr_bytes[2], &ea->addr_bytes[3],
+		&ea->addr_bytes[4], &ea->addr_bytes[5]);
+	return ret != ETHER_ADDR_LEN;
 }
 
 int

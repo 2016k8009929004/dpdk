@@ -8,9 +8,10 @@
 #include <rte_cryptodev.h>
 
 /*
- * Get capabilities list for the device, based on device type
+ * Get capabilities list for the device
+ *
  */
 const struct rte_cryptodev_capabilities *
-otx_get_capabilities(uint64_t flags);
+otx_get_capabilities(void);
 
 #endif /* _OTX_CRYPTODEV_CAPABILITIES_H_ */

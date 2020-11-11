@@ -13,7 +13,6 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#include <rte_string_fns.h>
 #include <rte_eal_memconfig.h>
 
 #include "vhost.h"
@@ -44,25 +43,14 @@ virtio_user_kick_queue(struct virtio_user_dev *dev, uint32_t queue_sel)
 	struct vhost_vring_file file;
 	struct vhost_vring_state state;
 	struct vring *vring = &dev->vrings[queue_sel];
-	struct vring_packed *pq_vring = &dev->packed_vrings[queue_sel];
 	struct vhost_vring_addr addr = {
 		.index = queue_sel,
+		.desc_user_addr = (uint64_t)(uintptr_t)vring->desc,
+		.avail_user_addr = (uint64_t)(uintptr_t)vring->avail,
+		.used_user_addr = (uint64_t)(uintptr_t)vring->used,
 		.log_guest_addr = 0,
 		.flags = 0, /* disable log */
 	};
-
-	if (dev->features & (1ULL << VIRTIO_F_RING_PACKED)) {
-		addr.desc_user_addr =
-			(uint64_t)(uintptr_t)pq_vring->desc;
-		addr.avail_user_addr =
-			(uint64_t)(uintptr_t)pq_vring->driver;
-		addr.used_user_addr =
-			(uint64_t)(uintptr_t)pq_vring->device;
-	} else {
-		addr.desc_user_addr = (uint64_t)(uintptr_t)vring->desc;
-		addr.avail_user_addr = (uint64_t)(uintptr_t)vring->avail;
-		addr.used_user_addr = (uint64_t)(uintptr_t)vring->used;
-	}
 
 	state.index = queue_sel;
 	state.num = vring->num;
@@ -70,8 +58,6 @@ virtio_user_kick_queue(struct virtio_user_dev *dev, uint32_t queue_sel)
 
 	state.index = queue_sel;
 	state.num = 0; /* no reservation */
-	if (dev->features & (1ULL << VIRTIO_F_RING_PACKED))
-		state.num |= (1 << 15);
 	dev->ops->send_request(dev, VHOST_USER_SET_VRING_BASE, &state);
 
 	dev->ops->send_request(dev, VHOST_USER_SET_VRING_ADDR, &addr);
@@ -125,6 +111,7 @@ is_vhost_user_by_type(const char *path)
 int
 virtio_user_start_device(struct virtio_user_dev *dev)
 {
+	struct rte_mem_config *mcfg = rte_eal_get_configuration()->mem_config;
 	uint64_t features;
 	int ret;
 
@@ -141,7 +128,7 @@ virtio_user_start_device(struct virtio_user_dev *dev)
 	 * replaced when we get proper supports from the
 	 * memory subsystem in the future.
 	 */
-	rte_mcfg_mem_read_lock();
+	rte_rwlock_read_lock(&mcfg->memory_hotplug_lock);
 	pthread_mutex_lock(&dev->mutex);
 
 	if (is_vhost_user_by_type(dev->path) && dev->vhostfd < 0)
@@ -151,10 +138,8 @@ virtio_user_start_device(struct virtio_user_dev *dev)
 	if (virtio_user_queue_setup(dev, virtio_user_create_queue) < 0)
 		goto error;
 
-	/* Step 1: negotiate protocol features & set features */
+	/* Step 1: set features */
 	features = dev->features;
-
-
 	/* Strip VIRTIO_NET_F_MAC, as MAC address is handled in vdev init */
 	features &= ~(1ull << VIRTIO_NET_F_MAC);
 	/* Strip VIRTIO_NET_F_CTRL_VQ, as devices do not really need to know */
@@ -181,12 +166,12 @@ virtio_user_start_device(struct virtio_user_dev *dev)
 
 	dev->started = true;
 	pthread_mutex_unlock(&dev->mutex);
-	rte_mcfg_mem_read_unlock();
+	rte_rwlock_read_unlock(&mcfg->memory_hotplug_lock);
 
 	return 0;
 error:
 	pthread_mutex_unlock(&dev->mutex);
-	rte_mcfg_mem_read_unlock();
+	rte_rwlock_read_unlock(&mcfg->memory_hotplug_lock);
 	/* TODO: free resource here or caller to check */
 	return -1;
 }
@@ -226,13 +211,17 @@ out:
 static inline void
 parse_mac(struct virtio_user_dev *dev, const char *mac)
 {
-	struct rte_ether_addr tmp;
+	int i, r;
+	uint32_t tmp[ETHER_ADDR_LEN];
 
 	if (!mac)
 		return;
 
-	if (rte_ether_unformat_addr(mac, &tmp) == 0) {
-		memcpy(dev->mac_addr, &tmp, RTE_ETHER_ADDR_LEN);
+	r = sscanf(mac, "%x:%x:%x:%x:%x:%x", &tmp[0],
+			&tmp[1], &tmp[2], &tmp[3], &tmp[4], &tmp[5]);
+	if (r == ETHER_ADDR_LEN) {
+		for (i = 0; i < ETHER_ADDR_LEN; ++i)
+			dev->mac_addr[i] = (uint8_t)tmp[i];
 		dev->mac_specified = 1;
 	} else {
 		/* ignore the wrong mac, use random mac */
@@ -418,23 +407,15 @@ virtio_user_dev_setup(struct virtio_user_dev *dev)
 	 1ULL << VIRTIO_NET_F_GUEST_TSO4	|	\
 	 1ULL << VIRTIO_NET_F_GUEST_TSO6	|	\
 	 1ULL << VIRTIO_F_IN_ORDER		|	\
-	 1ULL << VIRTIO_F_VERSION_1		|	\
-	 1ULL << VIRTIO_F_RING_PACKED		|	\
-	 1ULL << VHOST_USER_F_PROTOCOL_FEATURES)
-
-#define VIRTIO_USER_SUPPORTED_PROTOCOL_FEATURES		\
-	(1ULL << VHOST_USER_PROTOCOL_F_MQ |		\
-	 1ULL << VHOST_USER_PROTOCOL_F_REPLY_ACK)
+	 1ULL << VIRTIO_F_VERSION_1)
 
 int
 virtio_user_dev_init(struct virtio_user_dev *dev, char *path, int queues,
 		     int cq, int queue_size, const char *mac, char **ifname,
-		     int server, int mrg_rxbuf, int in_order, int packed_vq)
+		     int server, int mrg_rxbuf, int in_order)
 {
-	uint64_t protocol_features = 0;
-
 	pthread_mutex_init(&dev->mutex, NULL);
-	strlcpy(dev->path, path, PATH_MAX);
+	snprintf(dev->path, PATH_MAX, "%s", path);
 	dev->started = 0;
 	dev->max_queue_pairs = queues;
 	dev->queue_pairs = 1; /* mq disabled by default */
@@ -443,7 +424,6 @@ virtio_user_dev_init(struct virtio_user_dev *dev, char *path, int queues,
 	dev->mac_specified = 0;
 	dev->frontend_features = 0;
 	dev->unsupported_features = ~VIRTIO_USER_SUPPORTED_FEATURES;
-	dev->protocol_features = VIRTIO_USER_SUPPORTED_PROTOCOL_FEATURES;
 	parse_mac(dev, mac);
 
 	if (*ifname) {
@@ -455,10 +435,6 @@ virtio_user_dev_init(struct virtio_user_dev *dev, char *path, int queues,
 		PMD_INIT_LOG(ERR, "backend set up fails");
 		return -1;
 	}
-
-	if (!is_vhost_user_by_type(dev->path))
-		dev->unsupported_features |=
-			(1ULL << VHOST_USER_F_PROTOCOL_FEATURES);
 
 	if (!dev->is_server) {
 		if (dev->ops->send_request(dev, VHOST_USER_SET_OWNER,
@@ -474,27 +450,6 @@ virtio_user_dev_init(struct virtio_user_dev *dev, char *path, int queues,
 				     strerror(errno));
 			return -1;
 		}
-
-
-		if (dev->device_features &
-				(1ULL << VHOST_USER_F_PROTOCOL_FEATURES)) {
-			if (dev->ops->send_request(dev,
-					VHOST_USER_GET_PROTOCOL_FEATURES,
-					&protocol_features))
-				return -1;
-
-			dev->protocol_features &= protocol_features;
-
-			if (dev->ops->send_request(dev,
-					VHOST_USER_SET_PROTOCOL_FEATURES,
-					&dev->protocol_features))
-				return -1;
-
-			if (!(dev->protocol_features &
-					(1ULL << VHOST_USER_PROTOCOL_F_MQ)))
-				dev->unsupported_features |=
-					(1ull << VIRTIO_NET_F_MQ);
-		}
 	} else {
 		/* We just pretend vhost-user can support all these features.
 		 * Note that this could be problematic that if some feature is
@@ -504,16 +459,11 @@ virtio_user_dev_init(struct virtio_user_dev *dev, char *path, int queues,
 		dev->device_features = VIRTIO_USER_SUPPORTED_FEATURES;
 	}
 
-
-
 	if (!mrg_rxbuf)
 		dev->unsupported_features |= (1ull << VIRTIO_NET_F_MRG_RXBUF);
 
 	if (!in_order)
 		dev->unsupported_features |= (1ull << VIRTIO_F_IN_ORDER);
-
-	if (!packed_vq)
-		dev->unsupported_features |= (1ull << VIRTIO_F_RING_PACKED);
 
 	if (dev->mac_specified)
 		dev->frontend_features |= (1ull << VIRTIO_NET_F_MAC);
@@ -666,98 +616,6 @@ virtio_user_handle_ctrl_msg(struct virtio_user_dev *dev, struct vring *vring,
 	return n_descs;
 }
 
-static inline int
-desc_is_avail(struct vring_packed_desc *desc, bool wrap_counter)
-{
-	uint16_t flags = __atomic_load_n(&desc->flags, __ATOMIC_ACQUIRE);
-
-	return wrap_counter == !!(flags & VRING_PACKED_DESC_F_AVAIL) &&
-		wrap_counter != !!(flags & VRING_PACKED_DESC_F_USED);
-}
-
-static uint32_t
-virtio_user_handle_ctrl_msg_packed(struct virtio_user_dev *dev,
-				   struct vring_packed *vring,
-				   uint16_t idx_hdr)
-{
-	struct virtio_net_ctrl_hdr *hdr;
-	virtio_net_ctrl_ack status = ~0;
-	uint16_t idx_data, idx_status;
-	/* initialize to one, header is first */
-	uint32_t n_descs = 1;
-
-	/* locate desc for header, data, and status */
-	idx_data = idx_hdr + 1;
-	if (idx_data >= dev->queue_size)
-		idx_data -= dev->queue_size;
-
-	n_descs++;
-
-	idx_status = idx_data;
-	while (vring->desc[idx_status].flags & VRING_DESC_F_NEXT) {
-		idx_status++;
-		if (idx_status >= dev->queue_size)
-			idx_status -= dev->queue_size;
-		n_descs++;
-	}
-
-	hdr = (void *)(uintptr_t)vring->desc[idx_hdr].addr;
-	if (hdr->class == VIRTIO_NET_CTRL_MQ &&
-	    hdr->cmd == VIRTIO_NET_CTRL_MQ_VQ_PAIRS_SET) {
-		uint16_t queues;
-
-		queues = *(uint16_t *)(uintptr_t)
-				vring->desc[idx_data].addr;
-		status = virtio_user_handle_mq(dev, queues);
-	} else if (hdr->class == VIRTIO_NET_CTRL_RX  ||
-		   hdr->class == VIRTIO_NET_CTRL_MAC ||
-		   hdr->class == VIRTIO_NET_CTRL_VLAN) {
-		status = 0;
-	}
-
-	/* Update status */
-	*(virtio_net_ctrl_ack *)(uintptr_t)
-		vring->desc[idx_status].addr = status;
-
-	/* Update used descriptor */
-	vring->desc[idx_hdr].id = vring->desc[idx_status].id;
-	vring->desc[idx_hdr].len = sizeof(status);
-
-	return n_descs;
-}
-
-void
-virtio_user_handle_cq_packed(struct virtio_user_dev *dev, uint16_t queue_idx)
-{
-	struct virtio_user_queue *vq = &dev->packed_queues[queue_idx];
-	struct vring_packed *vring = &dev->packed_vrings[queue_idx];
-	uint16_t n_descs, flags;
-
-	/* Perform a load-acquire barrier in desc_is_avail to
-	 * enforce the ordering between desc flags and desc
-	 * content.
-	 */
-	while (desc_is_avail(&vring->desc[vq->used_idx],
-			     vq->used_wrap_counter)) {
-
-		n_descs = virtio_user_handle_ctrl_msg_packed(dev, vring,
-				vq->used_idx);
-
-		flags = VRING_DESC_F_WRITE;
-		if (vq->used_wrap_counter)
-			flags |= VRING_PACKED_DESC_F_AVAIL_USED;
-
-		__atomic_store_n(&vring->desc[vq->used_idx].flags, flags,
-				 __ATOMIC_RELEASE);
-
-		vq->used_idx += n_descs;
-		if (vq->used_idx >= dev->queue_size) {
-			vq->used_idx -= dev->queue_size;
-			vq->used_wrap_counter ^= 1;
-		}
-	}
-}
-
 void
 virtio_user_handle_cq(struct virtio_user_dev *dev, uint16_t queue_idx)
 {
@@ -767,10 +625,8 @@ virtio_user_handle_cq(struct virtio_user_dev *dev, uint16_t queue_idx)
 	struct vring *vring = &dev->vrings[queue_idx];
 
 	/* Consume avail ring, using used ring idx as first one */
-	while (__atomic_load_n(&vring->used->idx, __ATOMIC_RELAXED)
-	       != vring->avail->idx) {
-		avail_idx = __atomic_load_n(&vring->used->idx, __ATOMIC_RELAXED)
-			    & (vring->num - 1);
+	while (vring->used->idx != vring->avail->idx) {
+		avail_idx = (vring->used->idx) & (vring->num - 1);
 		desc_idx = vring->avail->ring[avail_idx];
 
 		n_descs = virtio_user_handle_ctrl_msg(dev, vring, desc_idx);
@@ -780,6 +636,6 @@ virtio_user_handle_cq(struct virtio_user_dev *dev, uint16_t queue_idx)
 		uep->id = desc_idx;
 		uep->len = n_descs;
 
-		__atomic_add_fetch(&vring->used->idx, 1, __ATOMIC_RELAXED);
+		vring->used->idx++;
 	}
 }

@@ -11,12 +11,8 @@
  * This file defines log macros
  */
 
-/*
- * otx*_cryptodev.h file would define the CPT_LOGTYPE macro for the
- * platform.
- */
 #define CPT_PMD_DRV_LOG_RAW(level, fmt, args...) \
-		rte_log(RTE_LOG_ ## level, CPT_LOGTYPE, \
+		rte_log(RTE_LOG_ ## level, cpt_logtype, \
 			"cpt: %s(): " fmt "\n", __func__, ##args)
 
 #define CPT_PMD_INIT_FUNC_TRACE() CPT_PMD_DRV_LOG_RAW(DEBUG, " >>")
@@ -44,5 +40,11 @@
 	CPT_LOG_DP(WARNING, fmt, ## args)
 #define CPT_LOG_DP_ERR(fmt, args...) \
 	CPT_LOG_DP(ERR, fmt, ## args)
+
+/*
+ * cpt_logtype will be used for common logging. This field would be initialized
+ * by otx_* driver routines during PCI probe.
+ */
+extern int cpt_logtype;
 
 #endif /* _CPT_PMD_LOGS_H_ */

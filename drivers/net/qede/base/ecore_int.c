@@ -28,10 +28,8 @@ struct ecore_pi_info {
 
 struct ecore_sb_sp_info {
 	struct ecore_sb_info sb_info;
-
-	/* Per protocol index data */
-	struct ecore_pi_info pi_info_arr[MAX_PIS_PER_SB];
-	osal_size_t pi_info_arr_size;
+	/* per protocol index data */
+	struct ecore_pi_info pi_info_arr[PIS_PER_SB_E4];
 };
 
 enum ecore_attention_type {
@@ -60,10 +58,10 @@ struct aeu_invert_reg_bit {
 #define ATTENTION_OFFSET_MASK		(0x000ff000)
 #define ATTENTION_OFFSET_SHIFT		(12)
 
-#define ATTENTION_BB_MASK		(0xf)
+#define ATTENTION_BB_MASK		(0x00700000)
 #define ATTENTION_BB_SHIFT		(20)
 #define ATTENTION_BB(value)		((value) << ATTENTION_BB_SHIFT)
-#define ATTENTION_BB_DIFFERENT		(1 << 24)
+#define ATTENTION_BB_DIFFERENT		(1 << 23)
 
 #define	ATTENTION_CLEAR_ENABLE		(1 << 28)
 	unsigned int flags;
@@ -192,10 +190,7 @@ static enum _ecore_status_t ecore_pswhst_attn_cb(struct ecore_hwfn *p_hwfn)
 	return ECORE_SUCCESS;
 }
 
-/* Register GRC_REG_TIMEOUT_ATTN_ACCESS_VALID */
-#define ECORE_GRC_ATTENTION_VALID_BIT_MASK      (0x1)
-#define ECORE_GRC_ATTENTION_VALID_BIT_SHIFT     (0)
-
+#define ECORE_GRC_ATTENTION_VALID_BIT		(1 << 0)
 #define ECORE_GRC_ATTENTION_ADDRESS_MASK	(0x7fffff << 0)
 #define ECORE_GRC_ATTENTION_RDWR_BIT		(1 << 23)
 #define ECORE_GRC_ATTENTION_MASTER_MASK		(0xf << 24)
@@ -240,14 +235,15 @@ static enum _ecore_status_t ecore_grc_attn_cb(struct ecore_hwfn *p_hwfn)
 	u32 tmp, tmp2;
 
 	/* We've already cleared the timeout interrupt register, so we learn
-	 * of interrupts via the validity register. If it is not a timeout do
-	 * nothing. It is too late at this stage to differentiate spurious
-	 * interrupt from fatal grc attention.
+	 * of interrupts via the validity register.
+	 * Any attention which is not for a timeout event is treated as fatal.
 	 */
 	tmp = ecore_rd(p_hwfn, p_hwfn->p_dpc_ptt,
 		       GRC_REG_TIMEOUT_ATTN_ACCESS_VALID);
-	if (!(GET_FIELD(tmp, ECORE_GRC_ATTENTION_VALID_BIT)))
+	if (!(tmp & ECORE_GRC_ATTENTION_VALID_BIT)) {
+		rc = ECORE_INVAL;
 		goto out;
+	}
 
 	/* Read the GRC timeout information */
 	tmp = ecore_rd(p_hwfn, p_hwfn->p_dpc_ptt,
@@ -610,8 +606,6 @@ enum aeu_invert_reg_special_type {
 	AEU_INVERT_REG_SPECIAL_CNIG_1,
 	AEU_INVERT_REG_SPECIAL_CNIG_2,
 	AEU_INVERT_REG_SPECIAL_CNIG_3,
-	AEU_INVERT_REG_SPECIAL_MCP_UMP_TX,
-	AEU_INVERT_REG_SPECIAL_MCP_SCPAD,
 	AEU_INVERT_REG_SPECIAL_MAX,
 };
 
@@ -621,8 +615,6 @@ aeu_descs_special[AEU_INVERT_REG_SPECIAL_MAX] = {
 	{"CNIG port 1", ATTENTION_SINGLE, OSAL_NULL, BLOCK_CNIG},
 	{"CNIG port 2", ATTENTION_SINGLE, OSAL_NULL, BLOCK_CNIG},
 	{"CNIG port 3", ATTENTION_SINGLE, OSAL_NULL, BLOCK_CNIG},
-	{"MCP Latched ump_tx", ATTENTION_PAR, OSAL_NULL, MAX_BLOCK_ID},
-	{"MCP Latched scratchpad", ATTENTION_PAR, OSAL_NULL, MAX_BLOCK_ID},
 };
 
 /* Notice aeu_invert_reg must be defined in the same order of bits as HW; */
@@ -686,15 +678,10 @@ static struct aeu_invert_reg aeu_descs[NUM_ATTN_REGS] = {
 	  {"AVS stop status ready", ATTENTION_SINGLE, OSAL_NULL, MAX_BLOCK_ID},
 	  {"MSTAT", ATTENTION_PAR_INT, OSAL_NULL, MAX_BLOCK_ID},
 	  {"MSTAT per-path", ATTENTION_PAR_INT, OSAL_NULL, MAX_BLOCK_ID},
-			{"OPTE", ATTENTION_PAR, OSAL_NULL, BLOCK_OPTE},
-			{"MCP", ATTENTION_PAR, OSAL_NULL, BLOCK_MCP},
-			{"MS", ATTENTION_SINGLE, OSAL_NULL, BLOCK_MS},
-			{"UMAC", ATTENTION_SINGLE, OSAL_NULL, BLOCK_UMAC},
-			{"LED", ATTENTION_SINGLE, OSAL_NULL, BLOCK_LED},
-			{"BMBN", ATTENTION_SINGLE, OSAL_NULL, BLOCK_BMBN},
+	  {"Reserved %d", (6 << ATTENTION_LENGTH_SHIFT), OSAL_NULL,
+	   MAX_BLOCK_ID},
 	  {"NIG", ATTENTION_PAR_INT, OSAL_NULL, BLOCK_NIG},
 	  {"BMB/OPTE/MCP", ATTENTION_PAR_INT, OSAL_NULL, BLOCK_BMB},
-			{"BMB", ATTENTION_PAR_INT, OSAL_NULL, BLOCK_BMB},
 	  {"BTB", ATTENTION_PAR_INT, OSAL_NULL, BLOCK_BTB},
 	  {"BRB", ATTENTION_PAR_INT, OSAL_NULL, BLOCK_BRB},
 	  {"PRS", ATTENTION_PAR_INT, OSAL_NULL, BLOCK_PRS},
@@ -797,17 +784,10 @@ static struct aeu_invert_reg aeu_descs[NUM_ATTN_REGS] = {
 	  {"MCP Latched memory", ATTENTION_PAR, OSAL_NULL, MAX_BLOCK_ID},
 	  {"MCP Latched scratchpad cache", ATTENTION_SINGLE, OSAL_NULL,
 	   MAX_BLOCK_ID},
-	  {"AVS", ATTENTION_PAR | ATTENTION_BB_DIFFERENT |
-	   ATTENTION_BB(AEU_INVERT_REG_SPECIAL_MCP_UMP_TX), OSAL_NULL,
-	   BLOCK_AVS_WRAP},
-	  {"AVS", ATTENTION_SINGLE | ATTENTION_BB_DIFFERENT |
-	   ATTENTION_BB(AEU_INVERT_REG_SPECIAL_MCP_SCPAD), OSAL_NULL,
-	   BLOCK_AVS_WRAP},
-	  {"PCIe core", ATTENTION_SINGLE, OSAL_NULL, BLOCK_PGLCS},
-	  {"PCIe link up", ATTENTION_SINGLE, OSAL_NULL, BLOCK_PGLCS},
-	  {"PCIe hot reset", ATTENTION_SINGLE, OSAL_NULL, BLOCK_PGLCS},
-	  {"Reserved %d", (9 << ATTENTION_LENGTH_SHIFT), OSAL_NULL,
-	    MAX_BLOCK_ID},
+	  {"MCP Latched ump_tx", ATTENTION_PAR, OSAL_NULL, MAX_BLOCK_ID},
+	  {"MCP Latched scratchpad", ATTENTION_PAR, OSAL_NULL, MAX_BLOCK_ID},
+	  {"Reserved %d", (28 << ATTENTION_LENGTH_SHIFT), OSAL_NULL,
+	   MAX_BLOCK_ID},
 	  }
 	 },
 
@@ -975,22 +955,14 @@ ecore_int_deassertion_aeu_bit(struct ecore_hwfn *p_hwfn,
 	/* @DPDK */
 	/* Reach assertion if attention is fatal */
 	if (b_fatal || (strcmp(p_bit_name, "PGLUE B RBC") == 0)) {
-#ifndef ASIC_ONLY
-		DP_NOTICE(p_hwfn, !CHIP_REV_IS_EMUL(p_hwfn->p_dev),
-			  "`%s': Fatal attention\n", p_bit_name);
-#else
 		DP_NOTICE(p_hwfn, true, "`%s': Fatal attention\n",
 			  p_bit_name);
-#endif
 
 		ecore_hw_err_notify(p_hwfn, ECORE_HW_ERR_HW_ATTN);
 	}
 
 	/* Prevent this Attention from being asserted in the future */
 	if (p_aeu->flags & ATTENTION_CLEAR_ENABLE ||
-#ifndef ASIC_ONLY
-	    CHIP_REV_IS_EMUL(p_hwfn->p_dev) ||
-#endif
 	    p_hwfn->p_dev->attn_clr_en) {
 		u32 val;
 		u32 mask = ~bitmask;
@@ -1041,13 +1013,6 @@ static void ecore_int_deassertion_parity(struct ecore_hwfn *p_hwfn,
 		p_aeu->bit_name);
 }
 
-#define MISC_REG_AEU_AFTER_INVERT_IGU(n) \
-	(MISC_REG_AEU_AFTER_INVERT_1_IGU + (n) * 0x4)
-
-#define MISC_REG_AEU_ENABLE_IGU_OUT(n, group) \
-	(MISC_REG_AEU_ENABLE1_IGU_OUT_0 + (n) * 0x4 + \
-	 (group) * 0x4 * NUM_ATTN_REGS)
-
 /**
  * @brief - handles deassertion of previously asserted attentions.
  *
@@ -1067,7 +1032,8 @@ static enum _ecore_status_t ecore_int_deassertion(struct ecore_hwfn *p_hwfn,
 	/* Read the attention registers in the AEU */
 	for (i = 0; i < NUM_ATTN_REGS; i++) {
 		aeu_inv_arr[i] = ecore_rd(p_hwfn, p_hwfn->p_dpc_ptt,
-					  MISC_REG_AEU_AFTER_INVERT_IGU(i));
+					  MISC_REG_AEU_AFTER_INVERT_1_IGU +
+					  i * 0x4);
 		DP_VERBOSE(p_hwfn, ECORE_MSG_INTR,
 			   "Deasserted bits [%d]: %08x\n", i, aeu_inv_arr[i]);
 	}
@@ -1077,7 +1043,7 @@ static enum _ecore_status_t ecore_int_deassertion(struct ecore_hwfn *p_hwfn,
 		struct aeu_invert_reg *p_aeu = &sb_attn_sw->p_aeu_desc[i];
 		u32 parities;
 
-		aeu_en = MISC_REG_AEU_ENABLE_IGU_OUT(i, 0);
+		aeu_en = MISC_REG_AEU_ENABLE1_IGU_OUT_0 + i * sizeof(u32);
 		en = ecore_rd(p_hwfn, p_hwfn->p_dpc_ptt, aeu_en);
 		parities = sb_attn_sw->parity_mask[i] & aeu_inv_arr[i] & en;
 
@@ -1108,7 +1074,9 @@ static enum _ecore_status_t ecore_int_deassertion(struct ecore_hwfn *p_hwfn,
 		for (i = 0; i < NUM_ATTN_REGS; i++) {
 			u32 bits;
 
-			aeu_en = MISC_REG_AEU_ENABLE_IGU_OUT(i, k);
+			aeu_en = MISC_REG_AEU_ENABLE1_IGU_OUT_0 +
+				 i * sizeof(u32) +
+				 k * sizeof(u32) * NUM_ATTN_REGS;
 			en = ecore_rd(p_hwfn, p_hwfn->p_dpc_ptt, aeu_en);
 			bits = aeu_inv_arr[i] & en;
 
@@ -1281,6 +1249,7 @@ void ecore_int_sp_dpc(osal_int_ptr_t hwfn_cookie)
 	struct ecore_pi_info *pi_info = OSAL_NULL;
 	struct ecore_sb_attn_info *sb_attn;
 	struct ecore_sb_info *sb_info;
+	int arr_size;
 	u16 rc = 0;
 
 	if (!p_hwfn)
@@ -1292,6 +1261,7 @@ void ecore_int_sp_dpc(osal_int_ptr_t hwfn_cookie)
 	}
 
 	sb_info = &p_hwfn->p_sp_sb->sb_info;
+	arr_size = OSAL_ARRAY_SIZE(p_hwfn->p_sp_sb->pi_info_arr);
 	if (!sb_info) {
 		DP_ERR(p_hwfn->p_dev,
 		       "Status block is NULL - cannot ack interrupts\n");
@@ -1356,14 +1326,14 @@ void ecore_int_sp_dpc(osal_int_ptr_t hwfn_cookie)
 		ecore_int_attentions(p_hwfn);
 
 	if (rc & ECORE_SB_IDX) {
-		osal_size_t pi;
+		int pi;
 
 		/* Since we only looked at the SB index, it's possible more
 		 * than a single protocol-index on the SB incremented.
 		 * Iterate over all configured protocol indices and check
 		 * whether something happened for each.
 		 */
-		for (pi = 0; pi < p_hwfn->p_sp_sb->pi_info_arr_size; pi++) {
+		for (pi = 0; pi < arr_size; pi++) {
 			pi_info = &p_hwfn->p_sp_sb->pi_info_arr[pi];
 			if (pi_info->comp_cb != OSAL_NULL)
 				pi_info->comp_cb(p_hwfn, pi_info->cookie);
@@ -1544,7 +1514,7 @@ static void _ecore_int_cau_conf_pi(struct ecore_hwfn *p_hwfn,
 	if (IS_VF(p_hwfn->p_dev))
 		return;/* @@@TBD MichalK- VF CAU... */
 
-	sb_offset = igu_sb_id * PIS_PER_SB;
+	sb_offset = igu_sb_id * PIS_PER_SB_E4;
 	OSAL_MEMSET(&pi_entry, 0, sizeof(struct cau_pi_entry));
 
 	SET_FIELD(pi_entry.prod, CAU_PI_ENTRY_PI_TIMESET, timeset);
@@ -1653,7 +1623,7 @@ void ecore_int_sb_setup(struct ecore_hwfn *p_hwfn,
 {
 	/* zero status block and ack counter */
 	sb_info->sb_ack = 0;
-	OSAL_MEMSET(sb_info->sb_virt, 0, sb_info->sb_size);
+	OSAL_MEMSET(sb_info->sb_virt, 0, sizeof(*sb_info->sb_virt));
 
 	if (IS_PF(p_hwfn->p_dev))
 		ecore_int_cau_conf_sb(p_hwfn, p_ptt, sb_info->sb_phys,
@@ -1736,14 +1706,6 @@ enum _ecore_status_t ecore_int_sb_init(struct ecore_hwfn *p_hwfn,
 				       dma_addr_t sb_phy_addr, u16 sb_id)
 {
 	sb_info->sb_virt = sb_virt_addr;
-	struct status_block *sb_virt;
-
-	sb_virt = (struct status_block *)sb_info->sb_virt;
-
-	sb_info->sb_size = sizeof(*sb_virt);
-	sb_info->sb_pi_array = sb_virt->pi_array;
-	sb_info->sb_prod_index = &sb_virt->prod_index;
-
 	sb_info->sb_phys = sb_phy_addr;
 
 	sb_info->igu_sb_id = ecore_get_igu_sb_id(p_hwfn, sb_id);
@@ -1775,16 +1737,16 @@ enum _ecore_status_t ecore_int_sb_init(struct ecore_hwfn *p_hwfn,
 	/* The igu address will hold the absolute address that needs to be
 	 * written to for a specific status block
 	 */
-	if (IS_PF(p_hwfn->p_dev))
+	if (IS_PF(p_hwfn->p_dev)) {
 		sb_info->igu_addr = (u8 OSAL_IOMEM *)p_hwfn->regview +
-				     GTT_BAR0_MAP_REG_IGU_CMD +
-				     (sb_info->igu_sb_id << 3);
+		    GTT_BAR0_MAP_REG_IGU_CMD + (sb_info->igu_sb_id << 3);
 
-	else
-		sb_info->igu_addr = (u8 OSAL_IOMEM *)p_hwfn->regview +
+	} else {
+		sb_info->igu_addr =
+		    (u8 OSAL_IOMEM *)p_hwfn->regview +
 		    PXP_VF_BAR0_START_IGU +
-				     ((IGU_CMD_INT_ACK_BASE +
-				       sb_info->igu_sb_id) << 3);
+		    ((IGU_CMD_INT_ACK_BASE + sb_info->igu_sb_id) << 3);
+	}
 
 	sb_info->flags |= ECORE_SB_INFO_INIT;
 
@@ -1805,7 +1767,7 @@ enum _ecore_status_t ecore_int_sb_release(struct ecore_hwfn *p_hwfn,
 
 	/* zero status block and ack counter */
 	sb_info->sb_ack = 0;
-	OSAL_MEMSET(sb_info->sb_virt, 0, sb_info->sb_size);
+	OSAL_MEMSET(sb_info->sb_virt, 0, sizeof(*sb_info->sb_virt));
 
 	if (IS_VF(p_hwfn->p_dev)) {
 		ecore_vf_set_sb_info(p_hwfn, sb_id, OSAL_NULL);
@@ -1854,10 +1816,11 @@ static enum _ecore_status_t ecore_int_sp_sb_alloc(struct ecore_hwfn *p_hwfn,
 	void *p_virt;
 
 	/* SB struct */
-	p_sb = OSAL_ZALLOC(p_hwfn->p_dev, GFP_KERNEL, sizeof(*p_sb));
+	p_sb =
+	    OSAL_ALLOC(p_hwfn->p_dev, GFP_KERNEL,
+		       sizeof(*p_sb));
 	if (!p_sb) {
-		DP_NOTICE(p_hwfn, false,
-			  "Failed to allocate `struct ecore_sb_info'\n");
+		DP_NOTICE(p_hwfn, false, "Failed to allocate `struct ecore_sb_info'\n");
 		return ECORE_NOMEM;
 	}
 
@@ -1875,7 +1838,7 @@ static enum _ecore_status_t ecore_int_sp_sb_alloc(struct ecore_hwfn *p_hwfn,
 	ecore_int_sb_init(p_hwfn, p_ptt, &p_sb->sb_info,
 			  p_virt, p_phys, ECORE_SP_SB_ID);
 
-	p_sb->pi_info_arr_size = PIS_PER_SB;
+	OSAL_MEMSET(p_sb->pi_info_arr, 0, sizeof(p_sb->pi_info_arr));
 
 	return ECORE_SUCCESS;
 }
@@ -1890,14 +1853,14 @@ enum _ecore_status_t ecore_int_register_cb(struct ecore_hwfn *p_hwfn,
 	u8 pi;
 
 	/* Look for a free index */
-	for (pi = 0; pi < p_sp_sb->pi_info_arr_size; pi++) {
+	for (pi = 0; pi < OSAL_ARRAY_SIZE(p_sp_sb->pi_info_arr); pi++) {
 		if (p_sp_sb->pi_info_arr[pi].comp_cb != OSAL_NULL)
 			continue;
 
 		p_sp_sb->pi_info_arr[pi].comp_cb = comp_cb;
 		p_sp_sb->pi_info_arr[pi].cookie = cookie;
 		*sb_idx = pi;
-		*p_fw_cons = &p_sp_sb->sb_info.sb_pi_array[pi];
+		*p_fw_cons = &p_sp_sb->sb_info.sb_virt->pi_array[pi];
 		rc = ECORE_SUCCESS;
 		break;
 	}
@@ -2025,9 +1988,10 @@ static void ecore_int_igu_cleanup_sb(struct ecore_hwfn *p_hwfn,
 				     bool cleanup_set,
 				     u16 opaque_fid)
 {
-	u32 data = 0, cmd_ctrl = 0, sb_bit, sb_bit_addr, pxp_addr;
-	u32 sleep_cnt = IGU_CLEANUP_SLEEP_LENGTH, val;
-	u8 type = 0;
+	u32 cmd_ctrl = 0, val = 0, sb_bit = 0, sb_bit_addr = 0, data = 0;
+	u32 pxp_addr = IGU_CMD_INT_ACK_BASE + igu_sb_id;
+	u32 sleep_cnt = IGU_CLEANUP_SLEEP_LENGTH;
+	u8 type = 0;		/* FIXME MichalS type??? */
 
 	OSAL_BUILD_BUG_ON((IGU_REG_CLEANUP_STATUS_4 -
 			   IGU_REG_CLEANUP_STATUS_0) != 0x200);
@@ -2042,7 +2006,6 @@ static void ecore_int_igu_cleanup_sb(struct ecore_hwfn *p_hwfn,
 	SET_FIELD(data, IGU_CLEANUP_COMMAND_TYPE, IGU_COMMAND_TYPE_SET);
 
 	/* Set the control register */
-	pxp_addr = IGU_CMD_INT_ACK_BASE + igu_sb_id;
 	SET_FIELD(cmd_ctrl, IGU_CTRL_REG_PXP_ADDR, pxp_addr);
 	SET_FIELD(cmd_ctrl, IGU_CTRL_REG_FID, opaque_fid);
 	SET_FIELD(cmd_ctrl, IGU_CTRL_REG_TYPE, IGU_CTRL_CMD_TYPE_WR);
@@ -2114,11 +2077,9 @@ void ecore_int_igu_init_pure_rt_single(struct ecore_hwfn *p_hwfn,
 			  igu_sb_id);
 
 	/* Clear the CAU for the SB */
-	for (pi = 0; pi < PIS_PER_SB; pi++)
+	for (pi = 0; pi < 12; pi++)
 		ecore_wr(p_hwfn, p_ptt,
-			 CAU_REG_PI_MEMORY +
-			 (igu_sb_id * PIS_PER_SB + pi) * 4,
-			 0);
+			 CAU_REG_PI_MEMORY + (igu_sb_id * 12 + pi) * 4, 0);
 }
 
 void ecore_int_igu_init_pure_rt(struct ecore_hwfn *p_hwfn,
@@ -2718,12 +2679,12 @@ enum _ecore_status_t ecore_int_get_sb_dbg(struct ecore_hwfn *p_hwfn,
 					  struct ecore_sb_info_dbg *p_info)
 {
 	u16 sbid = p_sb->igu_sb_id;
-	u32 i;
+	int i;
 
 	if (IS_VF(p_hwfn->p_dev))
 		return ECORE_INVAL;
 
-	if (sbid >= NUM_OF_SBS(p_hwfn->p_dev))
+	if (sbid > NUM_OF_SBS(p_hwfn->p_dev))
 		return ECORE_INVAL;
 
 	p_info->igu_prod = ecore_rd(p_hwfn, p_ptt,
@@ -2731,10 +2692,10 @@ enum _ecore_status_t ecore_int_get_sb_dbg(struct ecore_hwfn *p_hwfn,
 	p_info->igu_cons = ecore_rd(p_hwfn, p_ptt,
 				    IGU_REG_CONSUMER_MEM + sbid * 4);
 
-	for (i = 0; i < PIS_PER_SB; i++)
+	for (i = 0; i < PIS_PER_SB_E4; i++)
 		p_info->pi[i] = (u16)ecore_rd(p_hwfn, p_ptt,
 					      CAU_REG_PI_MEMORY +
-					      sbid * 4 * PIS_PER_SB +
+					      sbid * 4 * PIS_PER_SB_E4 +
 					      i * 4);
 
 	return ECORE_SUCCESS;

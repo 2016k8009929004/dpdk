@@ -111,13 +111,6 @@ pipeline_opt_check(struct evt_options *opt, uint64_t nb_queues)
 	 */
 	lcores = 2;
 
-	if (opt->prod_type != EVT_PROD_TYPE_ETH_RX_ADPTR) {
-		evt_err("Invalid producer type '%s' valid producer '%s'",
-			evt_prod_id_to_name(opt->prod_type),
-			evt_prod_id_to_name(EVT_PROD_TYPE_ETH_RX_ADPTR));
-		return -1;
-	}
-
 	if (!rte_eth_dev_count_avail()) {
 		evt_err("test needs minimum 1 ethernet dev");
 		return -1;
@@ -173,6 +166,7 @@ pipeline_ethdev_setup(struct evt_test *test, struct evt_options *opt)
 	struct rte_eth_conf port_conf = {
 		.rxmode = {
 			.mq_mode = ETH_MQ_RX_RSS,
+			.max_rx_pkt_len = ETHER_MAX_LEN,
 		},
 		.rx_adv_conf = {
 			.rss_conf = {
@@ -182,20 +176,11 @@ pipeline_ethdev_setup(struct evt_test *test, struct evt_options *opt)
 		},
 	};
 
+	RTE_SET_USED(opt);
 	if (!rte_eth_dev_count_avail()) {
 		evt_err("No ethernet ports found.");
 		return -ENODEV;
 	}
-
-	if (opt->max_pkt_sz < RTE_ETHER_MIN_LEN) {
-		evt_err("max_pkt_sz can not be less than %d",
-			RTE_ETHER_MIN_LEN);
-		return -EINVAL;
-	}
-
-	port_conf.rxmode.max_rx_pkt_len = opt->max_pkt_sz;
-	if (opt->max_pkt_sz > RTE_ETHER_MAX_LEN)
-		port_conf.rxmode.offloads |= DEV_RX_OFFLOAD_JUMBO_FRAME;
 
 	t->internal_port = 1;
 	RTE_ETH_FOREACH_DEV(i) {
@@ -212,13 +197,7 @@ pipeline_ethdev_setup(struct evt_test *test, struct evt_options *opt)
 		if (!(caps & RTE_EVENT_ETH_TX_ADAPTER_CAP_INTERNAL_PORT))
 			t->internal_port = 0;
 
-		ret = rte_eth_dev_info_get(i, &dev_info);
-		if (ret != 0) {
-			evt_err("Error during getting device (port %u) info: %s\n",
-				i, strerror(-ret));
-			return ret;
-		}
-
+		rte_eth_dev_info_get(i, &dev_info);
 		rx_conf = dev_info.default_rxconf;
 		rx_conf.offloads = port_conf.rxmode.offloads;
 
@@ -253,12 +232,7 @@ pipeline_ethdev_setup(struct evt_test *test, struct evt_options *opt)
 			return -EINVAL;
 		}
 
-		ret = rte_eth_promiscuous_enable(i);
-		if (ret != 0) {
-			evt_err("Failed to enable promiscuous mode for eth port [%d]: %s",
-				i, rte_strerror(-ret));
-			return ret;
-		}
+		rte_eth_promiscuous_enable(i);
 	}
 
 	return 0;
@@ -338,7 +312,7 @@ pipeline_event_rx_adapter_setup(struct evt_options *opt, uint8_t stride,
 		}
 
 		if (!(cap & RTE_EVENT_ETH_RX_ADAPTER_CAP_INTERNAL_PORT)) {
-			uint32_t service_id = -1U;
+			uint32_t service_id;
 
 			rte_event_eth_rx_adapter_service_id_get(prod,
 					&service_id);
@@ -390,7 +364,7 @@ pipeline_event_tx_adapter_setup(struct evt_options *opt,
 		}
 
 		if (!(cap & RTE_EVENT_ETH_TX_ADAPTER_CAP_INTERNAL_PORT)) {
-			uint32_t service_id = -1U;
+			uint32_t service_id;
 
 			ret = rte_event_eth_tx_adapter_service_id_get(consm,
 								   &service_id);
@@ -432,7 +406,6 @@ pipeline_eventdev_destroy(struct evt_test *test, struct evt_options *opt)
 {
 	RTE_SET_USED(test);
 
-	rte_event_dev_stop(opt->dev_id);
 	rte_event_dev_close(opt->dev_id);
 }
 
@@ -440,42 +413,12 @@ int
 pipeline_mempool_setup(struct evt_test *test, struct evt_options *opt)
 {
 	struct test_pipeline *t = evt_test_priv(test);
-	int i, ret;
-
-	if (!opt->mbuf_sz)
-		opt->mbuf_sz = RTE_MBUF_DEFAULT_BUF_SIZE;
-
-	if (!opt->max_pkt_sz)
-		opt->max_pkt_sz = RTE_ETHER_MAX_LEN;
-
-	RTE_ETH_FOREACH_DEV(i) {
-		struct rte_eth_dev_info dev_info;
-		uint16_t data_size = 0;
-
-		memset(&dev_info, 0, sizeof(dev_info));
-		ret = rte_eth_dev_info_get(i, &dev_info);
-		if (ret != 0) {
-			evt_err("Error during getting device (port %u) info: %s\n",
-				i, strerror(-ret));
-			return ret;
-		}
-
-		if (dev_info.rx_desc_lim.nb_mtu_seg_max != UINT16_MAX &&
-				dev_info.rx_desc_lim.nb_mtu_seg_max != 0) {
-			data_size = opt->max_pkt_sz /
-				dev_info.rx_desc_lim.nb_mtu_seg_max;
-			data_size += RTE_PKTMBUF_HEADROOM;
-
-			if (data_size  > opt->mbuf_sz)
-				opt->mbuf_sz = data_size;
-		}
-	}
 
 	t->pool = rte_pktmbuf_pool_create(test->name, /* mempool name */
 			opt->pool_sz, /* number of elements*/
 			512, /* cache size*/
 			0,
-			opt->mbuf_sz,
+			RTE_MBUF_DEFAULT_BUF_SIZE,
 			opt->socket_id); /* flags */
 
 	if (t->pool == NULL) {

@@ -12,14 +12,10 @@ find_orphan_symbols ()
     for map in $(find lib drivers -name '*.map') ; do
         for sym in $(sed -rn 's,^([^}]*_.*);,\1,p' $map) ; do
             if echo $sym | grep -q '^per_lcore_' ; then
-                symsrc=${sym#per_lcore_}
-            elif echo $sym | grep -q '^__rte_.*_trace_' ; then
-                symsrc=${sym#__}
-            else
-                symsrc=$sym
+                continue
             fi
             if ! grep -q -r --exclude=$(basename $map) \
-                    -w $symsrc $(dirname $map) ; then
+                    -w $sym $(dirname $map) ; then
                 echo "$map: $sym"
             fi
         done

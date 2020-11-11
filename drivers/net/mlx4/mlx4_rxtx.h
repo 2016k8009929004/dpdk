@@ -156,7 +156,6 @@ uint16_t mlx4_rx_burst_removed(void *dpdk_rxq, struct rte_mbuf **pkts,
 
 /* mlx4_txq.c */
 
-int mlx4_tx_uar_init_secondary(struct rte_eth_dev *dev, int fd);
 uint64_t mlx4_get_tx_port_offloads(struct mlx4_priv *priv);
 int mlx4_tx_queue_setup(struct rte_eth_dev *dev, uint16_t idx,
 			uint16_t desc, unsigned int socket,
@@ -184,7 +183,7 @@ uint32_t mlx4_tx_update_ext_mp(struct txq *txq, uintptr_t addr,
 static inline struct rte_mempool *
 mlx4_mb2mp(struct rte_mbuf *buf)
 {
-	if (unlikely(RTE_MBUF_CLONED(buf)))
+	if (unlikely(RTE_MBUF_INDIRECT(buf)))
 		return rte_mbuf_from_indirect(buf)->pool;
 	return buf->pool;
 }

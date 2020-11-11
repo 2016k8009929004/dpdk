@@ -12,9 +12,9 @@
 #include <rte_malloc.h>
 #include <rte_cpuflags.h>
 
-#include "AArch64cryptolib.h"
+#include "armv8_crypto_defs.h"
 
-#include "armv8_pmd_private.h"
+#include "rte_armv8_pmd_private.h"
 
 static uint8_t cryptodev_driver_id;
 
@@ -78,10 +78,8 @@ crypto_func_tbl_t[CRYPTO_CIPHER_MAX][CRYPTO_AUTH_MAX][CRYPTO_CIPHER_KEYLEN_MAX];
 static const crypto_func_tbl_t
 crypto_op_ca_encrypt = {
 	/* [cipher alg][auth alg][key length] = crypto_function, */
-	[CIPH_AES_CBC][AUTH_SHA1_HMAC][KEYL(128)] =
-		armv8_enc_aes_cbc_sha1_128,
-	[CIPH_AES_CBC][AUTH_SHA256_HMAC][KEYL(128)] =
-		armv8_enc_aes_cbc_sha256_128,
+	[CIPH_AES_CBC][AUTH_SHA1_HMAC][KEYL(128)] = aes128cbc_sha1_hmac,
+	[CIPH_AES_CBC][AUTH_SHA256_HMAC][KEYL(128)] = aes128cbc_sha256_hmac,
 };
 
 static const crypto_func_tbl_t
@@ -97,10 +95,8 @@ crypto_op_ac_encrypt = {
 static const crypto_func_tbl_t
 crypto_op_ac_decrypt = {
 	/* [cipher alg][auth alg][key length] = crypto_function, */
-	[CIPH_AES_CBC][AUTH_SHA1_HMAC][KEYL(128)] =
-		armv8_dec_aes_cbc_sha1_128,
-	[CIPH_AES_CBC][AUTH_SHA256_HMAC][KEYL(128)] =
-		armv8_dec_aes_cbc_sha256_128,
+	[CIPH_AES_CBC][AUTH_SHA1_HMAC][KEYL(128)] = sha1_hmac_aes128cbc_dec,
+	[CIPH_AES_CBC][AUTH_SHA256_HMAC][KEYL(128)] = sha256_hmac_aes128cbc_dec,
 };
 
 /**
@@ -159,13 +155,13 @@ crypto_key_sched_tbl_t[CRYPTO_CIPHER_MAX][CRYPTO_CIPHER_KEYLEN_MAX];
 static const crypto_key_sched_tbl_t
 crypto_key_sched_encrypt = {
 	/* [cipher alg][key length] = key_expand_func, */
-	[CIPH_AES_CBC][KEYL(128)] = armv8_expandkeys_enc_aes_cbc_128,
+	[CIPH_AES_CBC][KEYL(128)] = aes128_key_sched_enc,
 };
 
 static const crypto_key_sched_tbl_t
 crypto_key_sched_decrypt = {
 	/* [cipher alg][key length] = key_expand_func, */
-	[CIPH_AES_CBC][KEYL(128)] = armv8_expandkeys_dec_aes_cbc_128,
+	[CIPH_AES_CBC][KEYL(128)] = aes128_key_sched_dec,
 };
 
 /**
@@ -281,16 +277,14 @@ auth_set_prerequisites(struct armv8_crypto_session *sess,
 		 * Calculate partial hash values for i_key_pad and o_key_pad.
 		 * Will be used as initialization state for final HMAC.
 		 */
-		error = armv8_sha1_block_partial(NULL,
-				sess->auth.hmac.i_key_pad,
-				partial, SHA1_BLOCK_SIZE);
+		error = sha1_block_partial(NULL, sess->auth.hmac.i_key_pad,
+		    partial, SHA1_BLOCK_SIZE);
 		if (error != 0)
 			return -1;
 		memcpy(sess->auth.hmac.i_key_pad, partial, SHA1_BLOCK_SIZE);
 
-		error = armv8_sha1_block_partial(NULL,
-				sess->auth.hmac.o_key_pad,
-				partial, SHA1_BLOCK_SIZE);
+		error = sha1_block_partial(NULL, sess->auth.hmac.o_key_pad,
+		    partial, SHA1_BLOCK_SIZE);
 		if (error != 0)
 			return -1;
 		memcpy(sess->auth.hmac.o_key_pad, partial, SHA1_BLOCK_SIZE);
@@ -316,16 +310,14 @@ auth_set_prerequisites(struct armv8_crypto_session *sess,
 		 * Calculate partial hash values for i_key_pad and o_key_pad.
 		 * Will be used as initialization state for final HMAC.
 		 */
-		error = armv8_sha256_block_partial(NULL,
-				sess->auth.hmac.i_key_pad,
-				partial, SHA256_BLOCK_SIZE);
+		error = sha256_block_partial(NULL, sess->auth.hmac.i_key_pad,
+		    partial, SHA256_BLOCK_SIZE);
 		if (error != 0)
 			return -1;
 		memcpy(sess->auth.hmac.i_key_pad, partial, SHA256_BLOCK_SIZE);
 
-		error = armv8_sha256_block_partial(NULL,
-				sess->auth.hmac.o_key_pad,
-				partial, SHA256_BLOCK_SIZE);
+		error = sha256_block_partial(NULL, sess->auth.hmac.o_key_pad,
+		    partial, SHA256_BLOCK_SIZE);
 		if (error != 0)
 			return -1;
 		memcpy(sess->auth.hmac.o_key_pad, partial, SHA256_BLOCK_SIZE);
@@ -531,8 +523,7 @@ get_session(struct armv8_crypto_qp *qp, struct rte_crypto_op *op)
 		if (rte_mempool_get(qp->sess_mp, (void **)&_sess))
 			return NULL;
 
-		if (rte_mempool_get(qp->sess_mp_priv,
-				(void **)&_sess_private_data))
+		if (rte_mempool_get(qp->sess_mp, (void **)&_sess_private_data))
 			return NULL;
 
 		sess = (struct armv8_crypto_session *)_sess_private_data;
@@ -540,7 +531,7 @@ get_session(struct armv8_crypto_qp *qp, struct rte_crypto_op *op)
 		if (unlikely(armv8_crypto_set_session_parameters(sess,
 				op->sym->xform) != 0)) {
 			rte_mempool_put(qp->sess_mp, _sess);
-			rte_mempool_put(qp->sess_mp_priv, _sess_private_data);
+			rte_mempool_put(qp->sess_mp, _sess_private_data);
 			sess = NULL;
 		}
 		op->sym->session = (struct rte_cryptodev_sym_session *)_sess;
@@ -569,7 +560,7 @@ process_armv8_chained_op(struct armv8_crypto_qp *qp, struct rte_crypto_op *op,
 		struct rte_mbuf *mbuf_src, struct rte_mbuf *mbuf_dst)
 {
 	crypto_func_t crypto_func;
-	armv8_cipher_digest_t arg;
+	crypto_arg_t arg;
 	struct rte_mbuf *m_asrc, *m_adst;
 	uint8_t *csrc, *cdst;
 	uint8_t *adst, *asrc;
@@ -630,7 +621,7 @@ process_armv8_chained_op(struct armv8_crypto_qp *qp, struct rte_crypto_op *op,
 	arg.cipher.key = sess->cipher.key.data;
 	/* Acquire combined mode function */
 	crypto_func = sess->crypto_func;
-	RTE_VERIFY(crypto_func != NULL);
+	ARMV8_CRYPTO_ASSERT(crypto_func != NULL);
 	error = crypto_func(csrc, cdst, clen, asrc, adst, alen, &arg);
 	if (error != 0) {
 		op->status = RTE_CRYPTO_OP_STATUS_INVALID_ARGS;
@@ -672,10 +663,9 @@ process_op(struct armv8_crypto_qp *qp, struct rte_crypto_op *op,
 	if (op->sess_type == RTE_CRYPTO_OP_SESSIONLESS) {
 		memset(sess, 0, sizeof(struct armv8_crypto_session));
 		memset(op->sym->session, 0,
-			rte_cryptodev_sym_get_existing_header_session_size(
-				op->sym->session));
+				rte_cryptodev_sym_get_header_session_size());
 		rte_mempool_put(qp->sess_mp, sess);
-		rte_mempool_put(qp->sess_mp_priv, op->sym->session);
+		rte_mempool_put(qp->sess_mp, op->sym->session);
 		op->sym->session = NULL;
 	}
 
@@ -792,8 +782,7 @@ cryptodev_armv8_crypto_create(const char *name,
 	dev->feature_flags = RTE_CRYPTODEV_FF_SYMMETRIC_CRYPTO |
 			RTE_CRYPTODEV_FF_SYM_OPERATION_CHAINING |
 			RTE_CRYPTODEV_FF_CPU_NEON |
-			RTE_CRYPTODEV_FF_CPU_ARM_CE |
-			RTE_CRYPTODEV_FF_SYM_SESSIONLESS;
+			RTE_CRYPTODEV_FF_CPU_ARM_CE;
 
 	internals = dev->data->dev_private;
 

@@ -29,7 +29,7 @@ struct rte_eal_opt_loglevel {
 	TAILQ_ENTRY(rte_eal_opt_loglevel) next;
 	/** Compiled regular expression obtained from the option */
 	regex_t re_match;
-	/** Globbing pattern option */
+	/** Glob match string option */
 	char *pattern;
 	/** Log level value obtained from the option */
 	uint32_t level;
@@ -71,24 +71,6 @@ rte_openlog_stream(FILE *f)
 	return 0;
 }
 
-FILE *
-rte_log_get_stream(void)
-{
-	FILE *f = rte_logs.file;
-
-	if (f == NULL) {
-		/*
-		 * Grab the current value of stderr here, rather than
-		 * just initializing default_log_stream to stderr. This
-		 * ensures that we will always use the current value
-		 * of stderr, even if the application closes and
-		 * reopens it.
-		 */
-		return default_log_stream ? : stderr;
-	}
-	return f;
-}
-
 /* Set global log level */
 void
 rte_log_set_global_level(uint32_t level)
@@ -110,24 +92,6 @@ rte_log_get_level(uint32_t type)
 		return -1;
 
 	return rte_logs.dynamic_types[type].loglevel;
-}
-
-bool
-rte_log_can_log(uint32_t logtype, uint32_t level)
-{
-	int log_level;
-
-	if (level > rte_log_get_global_level())
-		return false;
-
-	log_level = rte_log_get_level(logtype);
-	if (log_level < 0)
-		return false;
-
-	if (level > (uint32_t)log_level)
-		return false;
-
-	return true;
 }
 
 int
@@ -207,7 +171,7 @@ int rte_log_save_regexp(const char *regex, int tmp)
 	return rte_log_save_level(tmp, regex, NULL);
 }
 
-/* set log level based on globbing pattern */
+/* set log level based on glob (file match) pattern */
 int
 rte_log_set_level_pattern(const char *pattern, uint32_t level)
 {
@@ -304,7 +268,7 @@ rte_log_register(const char *name)
 }
 
 /* Register an extended log type and try to pick its level from EAL options */
-int
+int __rte_experimental
 rte_log_register_type_and_pick_level(const char *name, uint32_t level_def)
 {
 	struct rte_eal_opt_loglevel *opt_ll;
@@ -432,12 +396,27 @@ rte_log_dump(FILE *f)
 int
 rte_vlog(uint32_t level, uint32_t logtype, const char *format, va_list ap)
 {
-	FILE *f = rte_log_get_stream();
 	int ret;
+	FILE *f = rte_logs.file;
+	if (f == NULL) {
+		f = default_log_stream;
+		if (f == NULL) {
+			/*
+			 * Grab the current value of stderr here, rather than
+			 * just initializing default_log_stream to stderr. This
+			 * ensures that we will always use the current value
+			 * of stderr, even if the application closes and
+			 * reopens it.
+			 */
+			f = stderr;
+		}
+	}
 
+	if (level > rte_logs.level)
+		return 0;
 	if (logtype >= rte_logs.dynamic_types_len)
 		return -1;
-	if (!rte_log_can_log(logtype, level))
+	if (level > rte_logs.dynamic_types[logtype].loglevel)
 		return 0;
 
 	/* save loglevel and logtype in a global per-lcore variable */

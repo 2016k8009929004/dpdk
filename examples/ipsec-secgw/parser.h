@@ -2,27 +2,26 @@
  * Copyright(c) 2016 Intel Corporation
  */
 
-#ifndef __PARSER_H
-#define __PARSER_H
-
 #include <sys/types.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
-#include <string.h>
+
+#ifndef __PARSER_H
+#define __PARSER_H
 
 struct parse_status {
 	int status;
 	char parse_msg[256];
 };
 
-#define	APP_CHECK(exp, st, fmt, ...)					\
+#define	APP_CHECK(exp, status, fmt, ...)				\
 do {									\
 	if (!(exp)) {							\
-		sprintf((st)->parse_msg, fmt "\n",			\
+		sprintf(status->parse_msg, fmt "\n",			\
 			## __VA_ARGS__);				\
-		(st)->status = -1;					\
+		status->status = -1;					\
 	} else								\
-		(st)->status = 0;					\
+		status->status = 0;					\
 } while (0)
 
 #define APP_CHECK_PRESENCE(val, str, status)				\
@@ -68,21 +67,12 @@ int
 parse_range(const char *token, uint16_t *low, uint16_t *high);
 
 void
-sp4_sort_arr(void);
-
-void
 parse_sp4_tokens(char **tokens, uint32_t n_tokens,
 	struct parse_status *status);
 
 void
-sp6_sort_arr(void);
-
-void
 parse_sp6_tokens(char **tokens, uint32_t n_tokens,
 	struct parse_status *status);
-
-void
-sa_sort_arr(void);
 
 void
 parse_sa_tokens(char **tokens, uint32_t n_tokens,

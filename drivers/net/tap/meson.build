@@ -1,9 +1,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Copyright 2018 Luca Boccassi <bluca@debian.org>
 
-if not is_linux
-	build = false
-	reason = 'only supported on linux'
+if host_machine.system() != 'linux'
+        build = false
 endif
 sources = files(
 	'rte_eth_tap.c',
@@ -39,6 +38,7 @@ args = [
 	  'TCA_ACT_BPF_FD' ],
 ]
 config = configuration_data()
+allow_experimental_apis = true
 foreach arg:args
 	config.set(arg[0], cc.has_header_symbol(arg[1], arg[2]))
 endforeach

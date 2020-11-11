@@ -71,10 +71,6 @@ compatible board:
    DPAA2 based resources can be configured easily with the help of ready scripts
    as provided in the DPDK Extra repository.
 
-5. **Build Config**
-
-   Use dpaa build configs, they work for both DPAA2 and DPAA platforms.
-
 As an alternative method, DPAA2 PMD can also be executed using images provided
 as part of SDK from NXP. The SDK includes all the above prerequisites necessary
 to bring up a DPAA2 board.
@@ -105,8 +101,8 @@ separately:
 
 Currently supported by DPDK:
 
-- NXP SDK **LSDK 19.09++**.
-- MC Firmware version **10.18.0** and higher.
+- NXP SDK **2.0+** (preferred: LSDK 18.09).
+- MC Firmware version **10.10.0** and higher.
 - Supported architectures:  **arm64 LE**.
 
 - Follow the DPDK :ref:`Getting Started Guide for Linux <linux_gsg>`

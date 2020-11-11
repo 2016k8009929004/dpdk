@@ -88,18 +88,7 @@ struct init_nig_pri_tc_map_req {
 
 
 /*
- * QM per global RL init parameters
- */
-struct init_qm_global_rl_params {
-/* Rate limit in Mb/sec units. If set to zero, the link speed is uwsed
- * instead.
- */
-	u32 rate_limit;
-};
-
-
-/*
- * QM per port init parameters
+ * QM per-port init parameters
  */
 struct init_qm_port_params {
 	u8 active /* Indicates if this port is active */;
@@ -122,20 +111,24 @@ struct init_qm_pq_params {
 	u8 wrr_group /* WRR group */;
 /* Indicates if a rate limiter should be allocated for the PQ (0/1) */
 	u8 rl_valid;
-	u16 rl_id /* RL ID, valid only if rl_valid is true */;
 	u8 port_id /* Port ID */;
-	u8 reserved;
+	u8 reserved0;
+	u16 reserved1;
 };
 
 
 /*
- * QM per VPORT init parameters
+ * QM per-vport init parameters
  */
 struct init_qm_vport_params {
+/* rate limit in Mb/sec units. a value of 0 means dont configure. ignored if
+ * VPORT RL is globally disabled.
+ */
+	u32 vport_rl;
 /* WFQ weight. A value of 0 means dont configure. ignored if VPORT WFQ is
  * globally disabled.
  */
-	u16 wfq;
+	u16 vport_wfq;
 /* the first Tx PQ ID associated with this VPORT for each TC. */
 	u16 first_tx_pq_id[NUM_OF_TCS];
 };

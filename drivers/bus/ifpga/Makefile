@@ -8,6 +8,7 @@ include $(RTE_SDK)/mk/rte.vars.mk
 #
 LIB = librte_bus_ifpga.a
 
+CFLAGS += -DALLOW_EXPERIMENTAL_API
 CFLAGS += -O3
 CFLAGS += $(WERROR_FLAGS)
 LDLIBS += -lrte_eal
@@ -16,6 +17,9 @@ LDLIBS += -lrte_kvargs
 
 # versioning export map
 EXPORT_MAP := rte_bus_ifpga_version.map
+
+# library version
+LIBABIVER := 2
 
 SRCS-$(CONFIG_RTE_LIBRTE_IFPGA_BUS) += ifpga_bus.c
 SRCS-$(CONFIG_RTE_LIBRTE_IFPGA_BUS) += ifpga_common.c

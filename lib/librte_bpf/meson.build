@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Copyright(c) 2018 Intel Corporation
 
+allow_experimental_apis = true
 sources = files('bpf.c',
 		'bpf_exec.c',
 		'bpf_load.c',
@@ -9,8 +10,6 @@ sources = files('bpf.c',
 
 if arch_subdir == 'x86' and dpdk_conf.get('RTE_ARCH_64')
 	sources += files('bpf_jit_x86.c')
-elif dpdk_conf.has('RTE_ARCH_ARM64')
-	sources += files('bpf_jit_arm64.c')
 endif
 
 install_headers('bpf_def.h',
@@ -19,9 +18,8 @@ install_headers('bpf_def.h',
 
 deps += ['mbuf', 'net', 'ethdev']
 
-dep = dependency('libelf', required: false)
-if dep.found()
-	dpdk_conf.set('RTE_LIBRTE_BPF_ELF', 1)
+dep = cc.find_library('elf', required: false)
+if dep.found() == true and cc.has_header('libelf.h', dependencies: dep)
 	sources += files('bpf_load_elf.c')
 	ext_deps += dep
 endif

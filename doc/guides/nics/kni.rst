@@ -55,8 +55,7 @@ configuration:
 
         Interface name: kni#
         force bind kernel thread to a core : NO
-        mbuf size: (rte_pktmbuf_data_room_size(pktmbuf_pool) - RTE_PKTMBUF_HEADROOM)
-        mtu: (conf.mbuf_size - RTE_ETHER_HDR_LEN)
+        mbuf size: MAX_PACKET_SZ
 
 KNI control path is not supported with the PMD, since there is no physical
 backend device by default.
@@ -168,3 +167,4 @@ It is possible to test PMD quickly using KNI kernel module loopback feature:
         RX-packets: 71275820       RX-dropped: 0             RX-total: 71275820
         TX-packets: 71275884       TX-dropped: 0             TX-total: 71275884
         ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+

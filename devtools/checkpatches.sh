@@ -4,48 +4,34 @@
 
 # Load config options:
 # - DPDK_CHECKPATCH_PATH
-# - DPDK_CHECKPATCH_CODESPELL
 # - DPDK_CHECKPATCH_LINE_LENGTH
-# - DPDK_CHECKPATCH_OPTIONS
-. $(dirname $(readlink -f $0))/load-devel-config
+. $(dirname $(readlink -e $0))/load-devel-config
 
-VALIDATE_NEW_API=$(dirname $(readlink -f $0))/check-symbol-change.sh
+VALIDATE_NEW_API=$(dirname $(readlink -e $0))/check-symbol-change.sh
 
-# Enable codespell by default. This can be overwritten from a config file.
-# Codespell can also be enabled by setting DPDK_CHECKPATCH_CODESPELL to a valid path
-# to a dictionary.txt file if dictionary.txt is not in the default location.
-codespell=${DPDK_CHECKPATCH_CODESPELL:-enable}
 length=${DPDK_CHECKPATCH_LINE_LENGTH:-80}
 
 # override default Linux options
 options="--no-tree"
-if [ "$codespell" = "enable" ] ; then
-    options="$options --codespell"
-elif [ -f "$codespell" ] ; then
-    options="$options --codespell"
-    options="$options --codespellfile $codespell"
-fi
 options="$options --max-line-length=$length"
 options="$options --show-types"
-options="$options --ignore=LINUX_VERSION_CODE,ENOSYS,\
+options="$options --ignore=LINUX_VERSION_CODE,\
 FILE_PATH_CHANGES,MAINTAINERS_STYLE,SPDX_LICENSE_TAG,\
 VOLATILE,PREFER_PACKED,PREFER_ALIGNED,PREFER_PRINTF,\
-PREFER_KERNEL_TYPES,PREFER_FALLTHROUGH,BIT_MACRO,CONST_STRUCT,\
-SPLIT_STRING,LONG_LINE_STRING,C99_COMMENT_TOLERANCE,\
+PREFER_KERNEL_TYPES,BIT_MACRO,CONST_STRUCT,\
+SPLIT_STRING,LONG_LINE_STRING,\
 LINE_SPACING,PARENTHESIS_ALIGNMENT,NETWORKING_BLOCK_COMMENT_STYLE,\
 NEW_TYPEDEFS,COMPARISON_TO_NULL"
-options="$options $DPDK_CHECKPATCH_OPTIONS"
 
 print_usage () {
 	cat <<- END_OF_HELP
-	usage: $(basename $0) [-h] [-q] [-v] [-nX|-r range|patch1 [patch2] ...]
+	usage: $(basename $0) [-q] [-v] [-nX|patch1 [patch2] ...]]
 
 	Run Linux kernel checkpatch.pl with DPDK options.
 	The environment variable DPDK_CHECKPATCH_PATH must be set.
 
 	The patches to check can be from stdin, files specified on the command line,
-	latest git commits limited with -n option, or commits in the git range
-	specified with -r option (default: "origin/master..").
+	or latest git commits limited with -n option (default limit: origin/master).
 	END_OF_HELP
 }
 
@@ -58,64 +44,7 @@ check_forbidden_additions() { # <patch>
 		-v EXPRESSIONS="rte_panic\\\( rte_exit\\\(" \
 		-v RET_ON_FAIL=1 \
 		-v MESSAGE='Using rte_panic/rte_exit' \
-		-f $(dirname $(readlink -f $0))/check-forbidden-tokens.awk \
-		"$1" || res=1
-
-	# refrain from using compiler attribute without defining a common macro
-	awk -v FOLDERS="lib drivers app examples" \
-		-v EXPRESSIONS="__attribute__" \
-		-v RET_ON_FAIL=1 \
-		-v MESSAGE='Using compiler attribute directly' \
-		-f $(dirname $(readlink -f $0))/check-forbidden-tokens.awk \
-		"$1" || res=1
-
-	# forbid variable declaration inside "for" loop
-	awk -v FOLDERS='.' \
-		-v EXPRESSIONS='for[[:space:]]*\\((char|u?int|unsigned|s?size_t)' \
-		-v RET_ON_FAIL=1 \
-		-v MESSAGE='Declaring a variable inside for()' \
-		-f $(dirname $(readlink -f $0))/check-forbidden-tokens.awk \
-		"$1" || res=1
-
-	# refrain from new additions of 16/32/64 bits rte_atomicNN_xxx()
-	awk -v FOLDERS="lib drivers app examples" \
-		-v EXPRESSIONS="rte_atomic[0-9][0-9]_.*\\\(" \
-		-v RET_ON_FAIL=1 \
-		-v MESSAGE='Using rte_atomicNN_xxx' \
-		-f $(dirname $(readlink -f $0))/check-forbidden-tokens.awk \
-		"$1" || res=1
-
-	# refrain from new additions of rte_smp_[r/w]mb()
-	awk -v FOLDERS="lib drivers app examples" \
-		-v EXPRESSIONS="rte_smp_(r|w)?mb\\\(" \
-		-v RET_ON_FAIL=1 \
-		-v MESSAGE='Using rte_smp_[r/w]mb' \
-		-f $(dirname $(readlink -f $0))/check-forbidden-tokens.awk \
-		"$1" || res=1
-
-	# refrain from using compiler __sync_xxx builtins
-	awk -v FOLDERS="lib drivers app examples" \
-		-v EXPRESSIONS="__sync_.*\\\(" \
-		-v RET_ON_FAIL=1 \
-		-v MESSAGE='Using __sync_xxx builtins' \
-		-f $(dirname $(readlink -f $0))/check-forbidden-tokens.awk \
-		"$1" || res=1
-
-	# refrain from using compiler __atomic_thread_fence()
-	# It should be avoided on x86 for SMP case.
-	awk -v FOLDERS="lib drivers app examples" \
-		-v EXPRESSIONS="__atomic_thread_fence\\\(" \
-		-v RET_ON_FAIL=1 \
-		-v MESSAGE='Using __atomic_thread_fence' \
-		-f $(dirname $(readlink -f $0))/check-forbidden-tokens.awk \
-		"$1" || res=1
-
-	# forbid use of experimental build flag except in examples
-	awk -v FOLDERS='lib drivers app' \
-		-v EXPRESSIONS='-DALLOW_EXPERIMENTAL_API allow_experimental_apis' \
-		-v RET_ON_FAIL=1 \
-		-v MESSAGE='Using experimental build flag for in-tree compilation' \
-		-f $(dirname $(readlink -f $0))/check-forbidden-tokens.awk \
+		-f $(dirname $(readlink -e $0))/check-forbidden-tokens.awk \
 		"$1" || res=1
 
 	# svg figures must be included with wildcard extension
@@ -124,7 +53,7 @@ check_forbidden_additions() { # <patch>
 		-v EXPRESSIONS='::[[:space:]]*[^[:space:]]*\\.svg' \
 		-v RET_ON_FAIL=1 \
 		-v MESSAGE='Using explicit .svg extension instead of .*' \
-		-f $(dirname $(readlink -f $0))/check-forbidden-tokens.awk \
+		-f $(dirname $(readlink -e $0))/check-forbidden-tokens.awk \
 		"$1" || res=1
 
 	# links must prefer https over http
@@ -138,76 +67,13 @@ check_forbidden_additions() { # <patch>
 	return $res
 }
 
-check_experimental_tags() { # <patch>
-	res=0
-
-	cat "$1" |awk '
-	BEGIN {
-		current_file = "";
-		ret = 0;
-	}
-	/^+++ b\// {
-		current_file = $2;
-	}
-	/^+.*__rte_experimental/ {
-		if (current_file ~ ".c$" ) {
-			print "Please only put __rte_experimental tags in " \
-				"headers ("current_file")";
-			ret = 1;
-		}
-		if ($1 != "+__rte_experimental" || $2 != "") {
-			print "__rte_experimental must appear alone on the line" \
-				" immediately preceding the return type of a function."
-			ret = 1;
-		}
-	}
-	END {
-		exit ret;
-	}' || res=1
-
-	return $res
-}
-
-check_internal_tags() { # <patch>
-	res=0
-
-	cat "$1" |awk '
-	BEGIN {
-		current_file = "";
-		ret = 0;
-	}
-	/^+++ b\// {
-		current_file = $2;
-	}
-	/^+.*__rte_internal/ {
-		if (current_file ~ ".c$" ) {
-			print "Please only put __rte_internal tags in " \
-				"headers ("current_file")";
-			ret = 1;
-		}
-		if ($1 != "+__rte_internal" || $2 != "") {
-			print "__rte_internal must appear alone on the line" \
-				" immediately preceding the return type of" \
-				" a function."
-			ret = 1;
-		}
-	}
-	END {
-		exit ret;
-	}' || res=1
-
-	return $res
-}
-
 number=0
-range='origin/master..'
 quiet=false
 verbose=false
-while getopts hn:qr:v ARG ; do
+while getopts hn:qv ARG ; do
 	case $ARG in
 		n ) number=$OPTARG ;;
 		q ) quiet=true ;;
-		r ) range=$OPTARG ;;
 		v ) verbose=true ;;
 		h ) print_usage ; exit 0 ;;
 		? ) print_usage ; exit 1 ;;
@@ -274,22 +140,6 @@ check () { # <patch> <commit> <title>
 		ret=1
 	fi
 
-	! $verbose || printf '\nChecking __rte_experimental tags:\n'
-	report=$(check_experimental_tags "$tmpinput")
-	if [ $? -ne 0 ] ; then
-		$headline_printed || print_headline "$3"
-		printf '%s\n' "$report"
-		ret=1
-	fi
-
-	! $verbose || printf '\nChecking __rte_internal tags:\n'
-	report=$(check_internal_tags "$tmpinput")
-	if [ $? -ne 0 ] ; then
-		$headline_printed || print_headline "$3"
-		printf '%s\n' "$report"
-		ret=1
-	fi
-
 	if [ "$tmpinput" != "$1" ]; then
 		rm -f "$tmpinput"
 		trap - INT
@@ -317,7 +167,7 @@ elif [ ! -t 0 ] ; then # stdin
 	check '' '' "$subject"
 else
 	if [ $number -eq 0 ] ; then
-		commits=$(git rev-list --reverse $range)
+		commits=$(git rev-list --reverse origin/master..)
 	else
 		commits=$(git rev-list --reverse --max-count=$number HEAD)
 	fi

@@ -42,8 +42,10 @@
 			    DEV_TX_OFFLOAD_VLAN_INSERT)
 
 #define HN_RX_OFFLOAD_CAPS (DEV_RX_OFFLOAD_CHECKSUM | \
-			    DEV_RX_OFFLOAD_VLAN_STRIP | \
-			    DEV_RX_OFFLOAD_RSS_HASH)
+			    DEV_RX_OFFLOAD_VLAN_STRIP)
+
+int hn_logtype_init;
+int hn_logtype_driver;
 
 struct hn_xstats_name_off {
 	char name[RTE_ETH_XSTATS_NAME_SIZE];
@@ -55,7 +57,6 @@ static const struct hn_xstats_name_off hn_stat_strings[] = {
 	{ "good_bytes",             offsetof(struct hn_stats, bytes) },
 	{ "errors",                 offsetof(struct hn_stats, errors) },
 	{ "ring full",              offsetof(struct hn_stats, ring_full) },
-	{ "channel full",           offsetof(struct hn_stats, channel_full) },
 	{ "multicast_packets",      offsetof(struct hn_stats, multicast) },
 	{ "broadcast_packets",      offsetof(struct hn_stats, broadcast) },
 	{ "undersize_packets",      offsetof(struct hn_stats, size_bins[0]) },
@@ -66,18 +67,6 @@ static const struct hn_xstats_name_off hn_stat_strings[] = {
 	{ "size_512_1023_packets",  offsetof(struct hn_stats, size_bins[5]) },
 	{ "size_1024_1518_packets", offsetof(struct hn_stats, size_bins[6]) },
 	{ "size_1519_max_packets",  offsetof(struct hn_stats, size_bins[7]) },
-};
-
-/* The default RSS key.
- * This value is the same as MLX5 so that flows will be
- * received on same path for both VF and synthetic NIC.
- */
-static const uint8_t rss_default_key[NDIS_HASH_KEYSIZE_TOEPLITZ] = {
-	0x2c, 0xc6, 0x81, 0xd1,	0x5b, 0xdb, 0xf4, 0xf7,
-	0xfc, 0xa2, 0x83, 0x19,	0xdb, 0x1a, 0x3e, 0x94,
-	0x6b, 0x9e, 0x38, 0xd9,	0x2c, 0x9c, 0x03, 0xd1,
-	0xad, 0x99, 0x44, 0xa7,	0xd9, 0x56, 0x3d, 0x59,
-	0x06, 0x3c, 0x25, 0xf3,	0xfc, 0x1f, 0xdc, 0x2a,
 };
 
 static struct rte_eth_dev *
@@ -122,9 +111,6 @@ eth_dev_vmbus_allocate(struct rte_vmbus_device *dev, size_t private_data_size)
 	dev->intr_handle.type = RTE_INTR_HANDLE_EXT;
 	eth_dev->data->dev_flags |= RTE_ETH_DEV_INTR_LSC;
 	eth_dev->intr_handle = &dev->intr_handle;
-
-	/* allow ethdev to remove on close */
-	eth_dev->data->dev_flags |= RTE_ETH_DEV_CLOSE_REMOVE;
 
 	return eth_dev;
 }
@@ -199,7 +185,7 @@ static int hn_parse_args(const struct rte_eth_dev *dev)
  */
 int
 hn_dev_link_update(struct rte_eth_dev *dev,
-		   int wait_to_complete __rte_unused)
+		   int wait_to_complete)
 {
 	struct hn_data *hv = dev->data->dev_private;
 	struct rte_eth_link link, old;
@@ -212,6 +198,8 @@ hn_dev_link_update(struct rte_eth_dev *dev,
 		return error;
 
 	hn_rndis_get_linkspeed(hv);
+
+	hn_vf_link_update(dev, wait_to_complete);
 
 	link = (struct rte_eth_link) {
 		.link_duplex = ETH_LINK_FULL_DUPLEX,
@@ -233,11 +221,10 @@ hn_dev_link_update(struct rte_eth_dev *dev,
 	return rte_eth_linkstatus_set(dev, &link);
 }
 
-static int hn_dev_info_get(struct rte_eth_dev *dev,
-			   struct rte_eth_dev_info *dev_info)
+static void hn_dev_info_get(struct rte_eth_dev *dev,
+			    struct rte_eth_dev_info *dev_info)
 {
 	struct hn_data *hv = dev->data->dev_private;
-	int rc;
 
 	dev_info->speed_capa = ETH_LINK_SPEED_10G;
 	dev_info->min_rx_bufsize = HN_MIN_RX_BUF_SIZE;
@@ -255,184 +242,22 @@ static int hn_dev_info_get(struct rte_eth_dev *dev,
 	dev_info->tx_desc_lim.nb_max = 4096;
 
 	if (rte_eal_process_type() != RTE_PROC_PRIMARY)
-		return 0;
+		return;
 
-	/* fills in rx and tx offload capability */
-	rc = hn_rndis_get_offload(hv, dev_info);
-	if (rc != 0)
-		return rc;
-
-	/* merges the offload and queues of vf */
-	return hn_vf_info_get(hv, dev_info);
+	hn_rndis_get_offload(hv, dev_info);
+	hn_vf_info_get(hv, dev_info);
 }
 
-static int hn_rss_reta_update(struct rte_eth_dev *dev,
-			      struct rte_eth_rss_reta_entry64 *reta_conf,
-			      uint16_t reta_size)
-{
-	struct hn_data *hv = dev->data->dev_private;
-	unsigned int i;
-	int err;
-
-	PMD_INIT_FUNC_TRACE();
-
-	if (reta_size != NDIS_HASH_INDCNT) {
-		PMD_DRV_LOG(ERR, "Hash lookup table size does not match NDIS");
-		return -EINVAL;
-	}
-
-	for (i = 0; i < NDIS_HASH_INDCNT; i++) {
-		uint16_t idx = i / RTE_RETA_GROUP_SIZE;
-		uint16_t shift = i % RTE_RETA_GROUP_SIZE;
-		uint64_t mask = (uint64_t)1 << shift;
-
-		if (reta_conf[idx].mask & mask)
-			hv->rss_ind[i] = reta_conf[idx].reta[shift];
-	}
-
-	err = hn_rndis_conf_rss(hv, NDIS_RSS_FLAG_DISABLE);
-	if (err) {
-		PMD_DRV_LOG(NOTICE,
-			"rss disable failed");
-		return err;
-	}
-
-	err = hn_rndis_conf_rss(hv, 0);
-	if (err) {
-		PMD_DRV_LOG(NOTICE,
-			    "reta reconfig failed");
-		return err;
-	}
-
-	return hn_vf_reta_hash_update(dev, reta_conf, reta_size);
-}
-
-static int hn_rss_reta_query(struct rte_eth_dev *dev,
-			     struct rte_eth_rss_reta_entry64 *reta_conf,
-			     uint16_t reta_size)
-{
-	struct hn_data *hv = dev->data->dev_private;
-	unsigned int i;
-
-	PMD_INIT_FUNC_TRACE();
-
-	if (reta_size != NDIS_HASH_INDCNT) {
-		PMD_DRV_LOG(ERR, "Hash lookup table size does not match NDIS");
-		return -EINVAL;
-	}
-
-	for (i = 0; i < NDIS_HASH_INDCNT; i++) {
-		uint16_t idx = i / RTE_RETA_GROUP_SIZE;
-		uint16_t shift = i % RTE_RETA_GROUP_SIZE;
-		uint64_t mask = (uint64_t)1 << shift;
-
-		if (reta_conf[idx].mask & mask)
-			reta_conf[idx].reta[shift] = hv->rss_ind[i];
-	}
-	return 0;
-}
-
-static void hn_rss_hash_init(struct hn_data *hv,
-			     const struct rte_eth_rss_conf *rss_conf)
-{
-	/* Convert from DPDK RSS hash flags to NDIS hash flags */
-	hv->rss_hash = NDIS_HASH_FUNCTION_TOEPLITZ;
-
-	if (rss_conf->rss_hf & ETH_RSS_IPV4)
-		hv->rss_hash |= NDIS_HASH_IPV4;
-	if (rss_conf->rss_hf & ETH_RSS_NONFRAG_IPV4_TCP)
-		hv->rss_hash |= NDIS_HASH_TCP_IPV4;
-	if (rss_conf->rss_hf & ETH_RSS_IPV6)
-		hv->rss_hash |=  NDIS_HASH_IPV6;
-	if (rss_conf->rss_hf & ETH_RSS_IPV6_EX)
-		hv->rss_hash |=  NDIS_HASH_IPV6_EX;
-	if (rss_conf->rss_hf & ETH_RSS_NONFRAG_IPV6_TCP)
-		hv->rss_hash |= NDIS_HASH_TCP_IPV6;
-	if (rss_conf->rss_hf & ETH_RSS_IPV6_TCP_EX)
-		hv->rss_hash |= NDIS_HASH_TCP_IPV6_EX;
-
-	memcpy(hv->rss_key, rss_conf->rss_key ? : rss_default_key,
-	       NDIS_HASH_KEYSIZE_TOEPLITZ);
-}
-
-static int hn_rss_hash_update(struct rte_eth_dev *dev,
-			      struct rte_eth_rss_conf *rss_conf)
-{
-	struct hn_data *hv = dev->data->dev_private;
-	int err;
-
-	PMD_INIT_FUNC_TRACE();
-
-	err = hn_rndis_conf_rss(hv, NDIS_RSS_FLAG_DISABLE);
-	if (err) {
-		PMD_DRV_LOG(NOTICE,
-			    "rss disable failed");
-		return err;
-	}
-
-	hn_rss_hash_init(hv, rss_conf);
-
-	if (rss_conf->rss_hf != 0) {
-		err = hn_rndis_conf_rss(hv, 0);
-		if (err) {
-			PMD_DRV_LOG(NOTICE,
-				    "rss reconfig failed (RSS disabled)");
-			return err;
-		}
-	}
-
-	return hn_vf_rss_hash_update(dev, rss_conf);
-}
-
-static int hn_rss_hash_conf_get(struct rte_eth_dev *dev,
-				struct rte_eth_rss_conf *rss_conf)
-{
-	struct hn_data *hv = dev->data->dev_private;
-
-	PMD_INIT_FUNC_TRACE();
-
-	if (hv->ndis_ver < NDIS_VERSION_6_20) {
-		PMD_DRV_LOG(DEBUG, "RSS not supported on this host");
-		return -EOPNOTSUPP;
-	}
-
-	rss_conf->rss_key_len = NDIS_HASH_KEYSIZE_TOEPLITZ;
-	if (rss_conf->rss_key)
-		memcpy(rss_conf->rss_key, hv->rss_key,
-		       NDIS_HASH_KEYSIZE_TOEPLITZ);
-
-	rss_conf->rss_hf = 0;
-	if (hv->rss_hash & NDIS_HASH_IPV4)
-		rss_conf->rss_hf |= ETH_RSS_IPV4;
-
-	if (hv->rss_hash & NDIS_HASH_TCP_IPV4)
-		rss_conf->rss_hf |= ETH_RSS_NONFRAG_IPV4_TCP;
-
-	if (hv->rss_hash & NDIS_HASH_IPV6)
-		rss_conf->rss_hf |= ETH_RSS_IPV6;
-
-	if (hv->rss_hash & NDIS_HASH_IPV6_EX)
-		rss_conf->rss_hf |= ETH_RSS_IPV6_EX;
-
-	if (hv->rss_hash & NDIS_HASH_TCP_IPV6)
-		rss_conf->rss_hf |= ETH_RSS_NONFRAG_IPV6_TCP;
-
-	if (hv->rss_hash & NDIS_HASH_TCP_IPV6_EX)
-		rss_conf->rss_hf |= ETH_RSS_IPV6_TCP_EX;
-
-	return 0;
-}
-
-static int
+static void
 hn_dev_promiscuous_enable(struct rte_eth_dev *dev)
 {
 	struct hn_data *hv = dev->data->dev_private;
 
 	hn_rndis_set_rxfilter(hv, NDIS_PACKET_TYPE_PROMISCUOUS);
-	return hn_vf_promiscuous_enable(dev);
+	hn_vf_promiscuous_enable(dev);
 }
 
-static int
+static void
 hn_dev_promiscuous_disable(struct rte_eth_dev *dev)
 {
 	struct hn_data *hv = dev->data->dev_private;
@@ -442,10 +267,10 @@ hn_dev_promiscuous_disable(struct rte_eth_dev *dev)
 	if (dev->data->all_multicast)
 		filter |= NDIS_PACKET_TYPE_ALL_MULTICAST;
 	hn_rndis_set_rxfilter(hv, filter);
-	return hn_vf_promiscuous_disable(dev);
+	hn_vf_promiscuous_disable(dev);
 }
 
-static int
+static void
 hn_dev_allmulticast_enable(struct rte_eth_dev *dev)
 {
 	struct hn_data *hv = dev->data->dev_private;
@@ -453,22 +278,22 @@ hn_dev_allmulticast_enable(struct rte_eth_dev *dev)
 	hn_rndis_set_rxfilter(hv, NDIS_PACKET_TYPE_DIRECTED |
 			      NDIS_PACKET_TYPE_ALL_MULTICAST |
 			NDIS_PACKET_TYPE_BROADCAST);
-	return hn_vf_allmulticast_enable(dev);
+	hn_vf_allmulticast_enable(dev);
 }
 
-static int
+static void
 hn_dev_allmulticast_disable(struct rte_eth_dev *dev)
 {
 	struct hn_data *hv = dev->data->dev_private;
 
 	hn_rndis_set_rxfilter(hv, NDIS_PACKET_TYPE_DIRECTED |
 			     NDIS_PACKET_TYPE_BROADCAST);
-	return hn_vf_allmulticast_disable(dev);
+	hn_vf_allmulticast_disable(dev);
 }
 
 static int
 hn_dev_mc_addr_list(struct rte_eth_dev *dev,
-		     struct rte_ether_addr *mc_addr_set,
+		     struct ether_addr *mc_addr_set,
 		     uint32_t nb_mc_addr)
 {
 	/* No filtering on the synthetic path, but can do it on VF */
@@ -529,18 +354,17 @@ static int hn_subchan_configure(struct hn_data *hv,
 
 static int hn_dev_configure(struct rte_eth_dev *dev)
 {
-	struct rte_eth_conf *dev_conf = &dev->data->dev_conf;
-	struct rte_eth_rss_conf *rss_conf = &dev_conf->rx_adv_conf.rss_conf;
+	const struct rte_eth_conf *dev_conf = &dev->data->dev_conf;
 	const struct rte_eth_rxmode *rxmode = &dev_conf->rxmode;
 	const struct rte_eth_txmode *txmode = &dev_conf->txmode;
+
+	const struct rte_eth_rss_conf *rss_conf =
+		&dev_conf->rx_adv_conf.rss_conf;
 	struct hn_data *hv = dev->data->dev_private;
 	uint64_t unsupported;
-	int i, err, subchan;
+	int err, subchan;
 
 	PMD_INIT_FUNC_TRACE();
-
-	if (dev_conf->rxmode.mq_mode & ETH_MQ_RX_RSS_FLAG)
-		dev_conf->rxmode.offloads |= DEV_RX_OFFLOAD_RSS_HASH;
 
 	unsupported = txmode->offloads & ~HN_TX_OFFLOAD_CAPS;
 	if (unsupported) {
@@ -558,8 +382,6 @@ static int hn_dev_configure(struct rte_eth_dev *dev)
 		return -EINVAL;
 	}
 
-	hv->vlan_strip = !!(rxmode->offloads & DEV_RX_OFFLOAD_VLAN_STRIP);
-
 	err = hn_rndis_conf_offload(hv, txmode->offloads,
 				    rxmode->offloads);
 	if (err) {
@@ -570,12 +392,6 @@ static int hn_dev_configure(struct rte_eth_dev *dev)
 
 	hv->num_queues = RTE_MAX(dev->data->nb_rx_queues,
 				 dev->data->nb_tx_queues);
-
-	for (i = 0; i < NDIS_HASH_INDCNT; i++)
-		hv->rss_ind[i] = i % dev->data->nb_rx_queues;
-
-	hn_rss_hash_init(hv, rss_conf);
-
 	subchan = hv->num_queues - 1;
 	if (subchan > 0) {
 		err = hn_subchan_configure(hv, subchan);
@@ -585,20 +401,11 @@ static int hn_dev_configure(struct rte_eth_dev *dev)
 			return err;
 		}
 
-		err = hn_rndis_conf_rss(hv, NDIS_RSS_FLAG_DISABLE);
+		err = hn_rndis_conf_rss(hv, rss_conf);
 		if (err) {
 			PMD_DRV_LOG(NOTICE,
-				"rss disable failed");
+				    "rss configuration failed");
 			return err;
-		}
-
-		if (rss_conf->rss_hf != 0) {
-			err = hn_rndis_conf_rss(hv, 0);
-			if (err) {
-				PMD_DRV_LOG(NOTICE,
-					    "initial RSS config failed");
-				return err;
-			}
 		}
 	}
 
@@ -649,7 +456,7 @@ static int hn_dev_stats_get(struct rte_eth_dev *dev,
 	return 0;
 }
 
-static int
+static void
 hn_dev_stats_reset(struct rte_eth_dev *dev)
 {
 	unsigned int i;
@@ -672,20 +479,13 @@ hn_dev_stats_reset(struct rte_eth_dev *dev)
 
 		memset(&rxq->stats, 0, sizeof(struct hn_stats));
 	}
-
-	return 0;
 }
 
-static int
+static void
 hn_dev_xstats_reset(struct rte_eth_dev *dev)
 {
-	int ret;
-
-	ret = hn_dev_stats_reset(dev);
-	if (ret != 0)
-		return 0;
-
-	return hn_vf_xstats_reset(dev);
+	hn_dev_stats_reset(dev);
+	hn_vf_xstats_reset(dev);
 }
 
 static int
@@ -842,12 +642,11 @@ hn_dev_stop(struct rte_eth_dev *dev)
 }
 
 static void
-hn_dev_close(struct rte_eth_dev *dev)
+hn_dev_close(struct rte_eth_dev *dev __rte_unused)
 {
-	PMD_INIT_FUNC_TRACE();
+	PMD_INIT_LOG(DEBUG, "close");
 
 	hn_vf_close(dev);
-	hn_dev_free_queues(dev);
 }
 
 static const struct eth_dev_ops hn_eth_dev_ops = {
@@ -856,26 +655,17 @@ static const struct eth_dev_ops hn_eth_dev_ops = {
 	.dev_stop		= hn_dev_stop,
 	.dev_close		= hn_dev_close,
 	.dev_infos_get		= hn_dev_info_get,
-	.txq_info_get		= hn_dev_tx_queue_info,
-	.rxq_info_get		= hn_dev_rx_queue_info,
 	.dev_supported_ptypes_get = hn_vf_supported_ptypes,
 	.promiscuous_enable     = hn_dev_promiscuous_enable,
 	.promiscuous_disable    = hn_dev_promiscuous_disable,
 	.allmulticast_enable    = hn_dev_allmulticast_enable,
 	.allmulticast_disable   = hn_dev_allmulticast_disable,
 	.set_mc_addr_list	= hn_dev_mc_addr_list,
-	.reta_update		= hn_rss_reta_update,
-	.reta_query             = hn_rss_reta_query,
-	.rss_hash_update	= hn_rss_hash_update,
-	.rss_hash_conf_get      = hn_rss_hash_conf_get,
 	.tx_queue_setup		= hn_dev_tx_queue_setup,
 	.tx_queue_release	= hn_dev_tx_queue_release,
 	.tx_done_cleanup        = hn_dev_tx_done_cleanup,
-	.tx_descriptor_status	= hn_dev_tx_descriptor_status,
 	.rx_queue_setup		= hn_dev_rx_queue_setup,
 	.rx_queue_release	= hn_dev_rx_queue_release,
-	.rx_queue_count		= hn_dev_rx_queue_count,
-	.rx_descriptor_status   = hn_dev_rx_queue_status,
 	.link_update		= hn_dev_link_update,
 	.stats_get		= hn_dev_stats_get,
 	.stats_reset            = hn_dev_stats_reset,
@@ -948,7 +738,7 @@ eth_hn_dev_init(struct rte_eth_dev *eth_dev)
 
 	/* Since Hyper-V only supports one MAC address */
 	eth_dev->data->mac_addrs = rte_calloc("hv_mac", HN_MAX_MAC_ADDRS,
-					      sizeof(struct rte_ether_addr), 0);
+					      sizeof(struct ether_addr), 0);
 	if (eth_dev->data->mac_addrs == NULL) {
 		PMD_INIT_LOG(ERR,
 			     "Failed to allocate memory store MAC addresses");
@@ -961,7 +751,7 @@ eth_hn_dev_init(struct rte_eth_dev *eth_dev)
 	hv->port_id = eth_dev->data->port_id;
 	hv->latency = HN_CHAN_LATENCY_NS;
 	hv->max_queues = 1;
-	rte_rwlock_init(&hv->vf_lock);
+	rte_spinlock_init(&hv->vf_lock);
 	hv->vf_port = HN_INVALID_PORT;
 
 	err = hn_parse_args(eth_dev);
@@ -989,7 +779,7 @@ eth_hn_dev_init(struct rte_eth_dev *eth_dev)
 	if (!hv->primary)
 		return -ENOMEM;
 
-	err = hn_attach(hv, RTE_ETHER_MTU);
+	err = hn_attach(hv, ETHER_MTU);
 	if  (err)
 		goto failed;
 
@@ -1038,7 +828,6 @@ static int
 eth_hn_dev_uninit(struct rte_eth_dev *eth_dev)
 {
 	struct hn_data *hv = eth_dev->data->dev_private;
-	int ret;
 
 	PMD_INIT_FUNC_TRACE();
 
@@ -1056,9 +845,7 @@ eth_hn_dev_uninit(struct rte_eth_dev *eth_dev)
 	hn_chim_uninit(eth_dev);
 	rte_vmbus_chan_close(hv->primary->chan);
 	rte_free(hv->primary);
-	ret = rte_eth_dev_owner_delete(hv->owner.id);
-	if (ret != 0)
-		return ret;
+	rte_eth_dev_owner_delete(hv->owner.id);
 
 	return 0;
 }
@@ -1118,5 +905,13 @@ static struct rte_vmbus_driver rte_netvsc_pmd = {
 
 RTE_PMD_REGISTER_VMBUS(net_netvsc, rte_netvsc_pmd);
 RTE_PMD_REGISTER_KMOD_DEP(net_netvsc, "* uio_hv_generic");
-RTE_LOG_REGISTER(hn_logtype_init, pmd.net.netvsc.init, NOTICE);
-RTE_LOG_REGISTER(hn_logtype_driver, pmd.net.netvsc.driver, NOTICE);
+
+RTE_INIT(hn_init_log)
+{
+	hn_logtype_init = rte_log_register("pmd.net.netvsc.init");
+	if (hn_logtype_init >= 0)
+		rte_log_set_level(hn_logtype_init, RTE_LOG_NOTICE);
+	hn_logtype_driver = rte_log_register("pmd.net.netvsc.driver");
+	if (hn_logtype_driver >= 0)
+		rte_log_set_level(hn_logtype_driver, RTE_LOG_NOTICE);
+}

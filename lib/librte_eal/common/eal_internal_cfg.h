@@ -63,8 +63,6 @@ struct internal_config {
 	/**< true to enable legacy memory behavior (no dynamic allocation,
 	 * IOVA-contiguous segments).
 	 */
-	volatile unsigned match_allocations;
-	/**< true to free hugepages exactly as allocated */
 	volatile unsigned single_file_segments;
 	/**< true if storing all pages within single files (per-page-size,
 	 * per-node) non-legacy mode only.
@@ -72,8 +70,6 @@ struct internal_config {
 	volatile int syslog_facility;	  /**< facility passed to openlog() */
 	/** default interrupt mode for VFIO */
 	volatile enum rte_intr_mode vfio_intr_mode;
-	/** the shared VF token for VFIO-PCI bound PF and VFs devices */
-	rte_uuid_t vfio_vf_token;
 	char *hugefile_prefix;      /**< the base filename of hugetlbfs files */
 	char *hugepage_dir;         /**< specific hugetlbfs directory to use */
 	char *user_mbuf_pool_ops_name;
@@ -84,8 +80,8 @@ struct internal_config {
 	rte_cpuset_t ctrl_cpuset;         /**< cpuset for ctrl threads */
 	volatile unsigned int init_complete;
 	/**< indicates whether EAL has completed initialization */
-	unsigned int no_telemetry; /**< true to disable Telemetry */
 };
+extern struct internal_config internal_config; /**< Global EAL configuration. */
 
 void eal_reset_internal_config(struct internal_config *internal_cfg);
 

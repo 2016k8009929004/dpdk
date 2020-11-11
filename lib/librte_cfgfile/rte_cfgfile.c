@@ -9,7 +9,6 @@
 #include <errno.h>
 #include <rte_string_fns.h>
 #include <rte_common.h>
-#include <rte_log.h>
 
 #include "rte_cfgfile.h"
 
@@ -26,12 +25,6 @@ struct rte_cfgfile {
 	int allocated_sections;
 	struct rte_cfgfile_section *sections;
 };
-
-RTE_LOG_REGISTER(cfgfile_logtype, lib.cfgfile, INFO);
-
-#define CFG_LOG(level, fmt, args...)					\
-	rte_log(RTE_LOG_ ## level, cfgfile_logtype, "%s(): " fmt "\n",	\
-		__func__, ## args)
 
 /** when we resize a file structure, how many extra entries
  * for new sections do we add in */
@@ -121,8 +114,9 @@ _add_entry(struct rte_cfgfile_section *section, const char *entryname,
 	struct rte_cfgfile_entry *curr_entry =
 					&section->entries[section->num_entries];
 
-	strlcpy(curr_entry->name, entryname, sizeof(curr_entry->name));
-	strlcpy(curr_entry->value, entryvalue, sizeof(curr_entry->value));
+	snprintf(curr_entry->name, sizeof(curr_entry->name), "%s", entryname);
+	snprintf(curr_entry->value,
+				sizeof(curr_entry->value), "%s", entryvalue);
 	section->num_entries++;
 
 	return 0;
@@ -135,7 +129,7 @@ rte_cfgfile_check_params(const struct rte_cfgfile_parameters *params)
 	unsigned int i;
 
 	if (!params) {
-		CFG_LOG(ERR, "missing cfgfile parameters\n");
+		printf("Error - missing cfgfile parameters\n");
 		return -EINVAL;
 	}
 
@@ -148,7 +142,7 @@ rte_cfgfile_check_params(const struct rte_cfgfile_parameters *params)
 	}
 
 	if (valid_comment == 0)	{
-		CFG_LOG(ERR, "invalid comment characters %c\n",
+		printf("Error - invalid comment characters %c\n",
 		       params->comment_character);
 		return -ENOTSUP;
 	}
@@ -167,9 +161,9 @@ struct rte_cfgfile *
 rte_cfgfile_load_with_params(const char *filename, int flags,
 			     const struct rte_cfgfile_parameters *params)
 {
-	char buffer[CFG_NAME_LEN + CFG_VALUE_LEN + 4];
+	char buffer[CFG_NAME_LEN + CFG_VALUE_LEN + 4] = {0};
 	int lineno = 0;
-	struct rte_cfgfile *cfg;
+	struct rte_cfgfile *cfg = NULL;
 
 	if (rte_cfgfile_check_params(params))
 		return NULL;
@@ -181,11 +175,11 @@ rte_cfgfile_load_with_params(const char *filename, int flags,
 	cfg = rte_cfgfile_create(flags);
 
 	while (fgets(buffer, sizeof(buffer), f) != NULL) {
-		char *pos;
+		char *pos = NULL;
 		size_t len = strnlen(buffer, sizeof(buffer));
 		lineno++;
 		if ((len >= sizeof(buffer) - 1) && (buffer[len-1] != '\n')) {
-			CFG_LOG(ERR, " line %d - no \\n found on string. "
+			printf("Error line %d - no \\n found on string. "
 					"Check if line too long\n", lineno);
 			goto error1;
 		}
@@ -206,9 +200,8 @@ rte_cfgfile_load_with_params(const char *filename, int flags,
 			/* section heading line */
 			char *end = memchr(buffer, ']', len);
 			if (end == NULL) {
-				CFG_LOG(ERR,
-					"line %d - no terminating ']' character found\n",
-					lineno);
+				printf("Error line %d - no terminating ']'"
+					"character found\n", lineno);
 				goto error1;
 			}
 			*end = '\0';
@@ -222,9 +215,8 @@ rte_cfgfile_load_with_params(const char *filename, int flags,
 			split[0] = buffer;
 			split[1] = memchr(buffer, '=', len);
 			if (split[1] == NULL) {
-				CFG_LOG(ERR,
-					"line %d - no '=' character found\n",
-					lineno);
+				printf("Error line %d - no '='"
+					"character found\n", lineno);
 				goto error1;
 			}
 			*split[1] = '\0';
@@ -246,9 +238,8 @@ rte_cfgfile_load_with_params(const char *filename, int flags,
 
 			if (!(flags & CFG_FLAG_EMPTY_VALUES) &&
 					(*split[1] == '\0')) {
-				CFG_LOG(ERR,
-					"line %d - cannot use empty values\n",
-					lineno);
+				printf("Error at line %d - cannot use empty "
+							"values\n", lineno);
 				goto error1;
 			}
 
@@ -271,11 +262,7 @@ struct rte_cfgfile *
 rte_cfgfile_create(int flags)
 {
 	int i;
-	struct rte_cfgfile *cfg;
-
-	/* future proof flags usage */
-	if (flags & ~(CFG_FLAG_GLOBAL_SECTION | CFG_FLAG_EMPTY_VALUES))
-		return NULL;
+	struct rte_cfgfile *cfg = NULL;
 
 	cfg = malloc(sizeof(*cfg));
 
@@ -286,16 +273,17 @@ rte_cfgfile_create(int flags)
 	cfg->num_sections = 0;
 
 	/* allocate first batch of sections and entries */
-	cfg->sections = calloc(CFG_ALLOC_SECTION_BATCH,
-			       sizeof(struct rte_cfgfile_section));
+	cfg->sections = malloc(sizeof(struct rte_cfgfile_section) *
+			CFG_ALLOC_SECTION_BATCH);
+
 	if (cfg->sections == NULL)
 		goto error1;
 
 	cfg->allocated_sections = CFG_ALLOC_SECTION_BATCH;
 
 	for (i = 0; i < CFG_ALLOC_SECTION_BATCH; i++) {
-		cfg->sections[i].entries = calloc(CFG_ALLOC_ENTRY_BATCH,
-					  sizeof(struct rte_cfgfile_entry));
+		cfg->sections[i].entries = malloc(sizeof(
+			struct rte_cfgfile_entry) * CFG_ALLOC_ENTRY_BATCH);
 
 		if (cfg->sections[i].entries == NULL)
 			goto error1;
@@ -356,8 +344,8 @@ rte_cfgfile_add_section(struct rte_cfgfile *cfg, const char *sectionname)
 		cfg->allocated_sections += CFG_ALLOC_SECTION_BATCH;
 	}
 
-	strlcpy(cfg->sections[cfg->num_sections].name, sectionname,
-		sizeof(cfg->sections[0].name));
+	snprintf(cfg->sections[cfg->num_sections].name,
+			sizeof(cfg->sections[0].name), "%s", sectionname);
 	cfg->sections[cfg->num_sections].num_entries = 0;
 	cfg->num_sections++;
 
@@ -407,12 +395,12 @@ int rte_cfgfile_set_entry(struct rte_cfgfile *cfg, const char *sectionname,
 
 	for (i = 0; i < curr_section->num_entries; i++)
 		if (!strcmp(curr_section->entries[i].name, entryname)) {
-			strlcpy(curr_section->entries[i].value, entryvalue,
-				sizeof(curr_section->entries[i].value));
+			snprintf(curr_section->entries[i].value,
+					sizeof(curr_section->entries[i].value),
+							"%s", entryvalue);
 			return 0;
 		}
-
-	CFG_LOG(ERR, "entry name doesn't exist\n");
+	printf("Error - entry name doesn't exist\n");
 	return -EINVAL;
 }
 
@@ -483,7 +471,8 @@ rte_cfgfile_sections(struct rte_cfgfile *cfg, char *sections[],
 	int i;
 
 	for (i = 0; i < cfg->num_sections && i < max_sections; i++)
-		strlcpy(sections[i], cfg->sections[i].name, CFG_NAME_LEN);
+		snprintf(sections[i], CFG_NAME_LEN, "%s",
+		cfg->sections[i].name);
 
 	return i;
 }
@@ -513,7 +502,7 @@ rte_cfgfile_section_num_entries_by_index(struct rte_cfgfile *cfg,
 
 	const struct rte_cfgfile_section *sect = &(cfg->sections[index]);
 
-	strlcpy(sectionname, sect->name, CFG_NAME_LEN);
+	snprintf(sectionname, CFG_NAME_LEN, "%s", sect->name);
 	return sect->num_entries;
 }
 int
@@ -540,7 +529,7 @@ rte_cfgfile_section_entries_by_index(struct rte_cfgfile *cfg, int index,
 	if (index < 0 || index >= cfg->num_sections)
 		return -1;
 	sect = &cfg->sections[index];
-	strlcpy(sectionname, sect->name, CFG_NAME_LEN);
+	snprintf(sectionname, CFG_NAME_LEN, "%s", sect->name);
 	for (i = 0; i < max_entries && i < sect->num_entries; i++)
 		entries[i] = sect->entries[i];
 	return i;

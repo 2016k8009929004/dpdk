@@ -26,10 +26,7 @@ foreach k:kmods
 			'KMOD_OBJDIR=@OUTDIR@',
 			'KMOD_SRC=@INPUT1@',
 			'KMOD=' + k,
-			'KMOD_CFLAGS=' + ' '.join(kmod_cflags),
-			'CC=clang'],
+			'KMOD_CFLAGS=' + ' '.join(kmod_cflags)],
 		depends: built_kmods, # make each module depend on prev
-		build_by_default: get_option('enable_kmods'),
-		install: get_option('enable_kmods'),
-		install_dir: '/boot/modules/')
+		build_by_default: get_option('enable_kmods'))
 endforeach

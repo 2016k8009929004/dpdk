@@ -10,6 +10,7 @@
 #include "null_crypto_pmd_private.h"
 
 static uint8_t cryptodev_driver_id;
+int null_logtype_driver;
 
 /** verify and set session parameters */
 int
@@ -87,8 +88,7 @@ get_session(struct null_crypto_qp *qp, struct rte_crypto_op *op)
 		if (rte_mempool_get(qp->sess_mp, (void **)&_sess))
 			return NULL;
 
-		if (rte_mempool_get(qp->sess_mp_priv,
-				(void **)&_sess_private_data))
+		if (rte_mempool_get(qp->sess_mp, (void **)&_sess_private_data))
 			return NULL;
 
 		sess = (struct null_crypto_session *)_sess_private_data;
@@ -96,7 +96,7 @@ get_session(struct null_crypto_qp *qp, struct rte_crypto_op *op)
 		if (unlikely(null_crypto_set_session_parameters(sess,
 				sym_op->xform) != 0)) {
 			rte_mempool_put(qp->sess_mp, _sess);
-			rte_mempool_put(qp->sess_mp_priv, _sess_private_data);
+			rte_mempool_put(qp->sess_mp, _sess_private_data);
 			sess = NULL;
 		}
 		sym_op->session = (struct rte_cryptodev_sym_session *)_sess;
@@ -177,8 +177,7 @@ cryptodev_null_create(const char *name,
 
 	dev->feature_flags = RTE_CRYPTODEV_FF_SYMMETRIC_CRYPTO |
 			RTE_CRYPTODEV_FF_SYM_OPERATION_CHAINING |
-			RTE_CRYPTODEV_FF_IN_PLACE_SGL |
-			RTE_CRYPTODEV_FF_SYM_SESSIONLESS;
+			RTE_CRYPTODEV_FF_IN_PLACE_SGL;
 
 	internals = dev->data->dev_private;
 
@@ -248,4 +247,8 @@ RTE_PMD_REGISTER_PARAM_STRING(CRYPTODEV_NAME_NULL_PMD,
 	"socket_id=<int>");
 RTE_PMD_REGISTER_CRYPTO_DRIVER(null_crypto_drv, cryptodev_null_pmd_drv.driver,
 		cryptodev_driver_id);
-RTE_LOG_REGISTER(null_logtype_driver, pmd.crypto.null, INFO);
+
+RTE_INIT(null_init_log)
+{
+	null_logtype_driver = rte_log_register("pmd.crypto.null");
+}

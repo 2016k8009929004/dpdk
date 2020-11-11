@@ -12,9 +12,6 @@ support for utilizing Intel multi buffer library, see the white paper
 
 The AES-NI MB PMD has current only been tested on Fedora 21 64-bit with gcc.
 
-The AES-NI MB PMD supports synchronous mode of operation with
-``rte_cryptodev_sym_cpu_crypto_process`` function call.
-
 Features
 --------
 
@@ -43,30 +40,19 @@ Hash algorithms:
 * RTE_CRYPTO_HASH_SHA512_HMAC
 * RTE_CRYPTO_HASH_AES_XCBC_HMAC
 * RTE_CRYPTO_HASH_AES_CMAC
-* RTE_CRYPTO_HASH_AES_GMAC
-* RTE_CRYPTO_HASH_SHA1
-* RTE_CRYPTO_HASH_SHA224
-* RTE_CRYPTO_HASH_SHA256
-* RTE_CRYPTO_HASH_SHA384
-* RTE_CRYPTO_HASH_SHA512
 
 AEAD algorithms:
 
 * RTE_CRYPTO_AEAD_AES_CCM
 * RTE_CRYPTO_AEAD_AES_GCM
 
-Protocol offloads:
-
-* RTE_SECURITY_PROTOCOL_DOCSIS
-
 Limitations
 -----------
 
 * Chained mbufs are not supported.
-* Out-of-place is not supported for combined Crypto-CRC DOCSIS security
-  protocol.
-* RTE_CRYPTO_CIPHER_DES_DOCSISBPI is not supported for combined Crypto-CRC
-  DOCSIS security protocol.
+* Only in-place is currently supported (destination address is the same as source address).
+* RTE_CRYPTO_AEAD_AES_GCM only works properly when the multi-buffer library is
+  0.51.0 or newer.
 
 
 Installation
@@ -75,8 +61,8 @@ Installation
 To build DPDK with the AESNI_MB_PMD the user is required to download the multi-buffer
 library from `here <https://github.com/01org/intel-ipsec-mb>`_
 and compile it on their user system before building DPDK.
-The latest version of the library supported by this PMD is v0.54, which
-can be downloaded from `<https://github.com/01org/intel-ipsec-mb/archive/v0.54.zip>`_.
+The latest version of the library supported by this PMD is v0.51, which
+can be downloaded from `<https://github.com/01org/intel-ipsec-mb/archive/v0.51.zip>`_.
 
 .. code-block:: console
 
@@ -97,12 +83,6 @@ Once it is downloaded, extract it and follow these steps:
     make
     make install
 
-.. note::
-
-   Compilation of the Multi-Buffer library is broken when GCC < 5.0, if library <= v0.53.
-   If a lower GCC version than 5.0, the workaround proposed by the following link
-   should be used: `<https://github.com/intel/intel-ipsec-mb/issues/40>`_.
-
 As a reference, the following table shows a mapping between the past DPDK versions
 and the Multi-Buffer library version supported by them:
 
@@ -118,9 +98,7 @@ and the Multi-Buffer library version supported by them:
    17.05 - 17.08   0.45 - 0.48
    17.11           0.47 - 0.48
    18.02           0.48
-   18.05 - 19.02   0.49 - 0.52
-   19.05 - 19.08   0.52
-   19.11+          0.52 - 0.54
+   18.05+          0.49+
    ==============  ============================
 
 

@@ -2,10 +2,10 @@
  *   Copyright(c) 2018 Advanced Micro Devices, Inc. All rights reserved.
  */
 
-#include <rte_string_fns.h>
 #include <rte_bus_pci.h>
 #include <rte_bus_vdev.h>
 #include <rte_common.h>
+#include <rte_config.h>
 #include <rte_cryptodev.h>
 #include <rte_cryptodev_pmd.h>
 #include <rte_pci.h>
@@ -180,7 +180,7 @@ get_ccp_session(struct ccp_qp *qp, struct rte_crypto_op *op)
 		if (unlikely(ccp_set_session_parameters(sess, op->sym->xform,
 							internals) != 0)) {
 			rte_mempool_put(qp->sess_mp, _sess);
-			rte_mempool_put(qp->sess_mp_priv, _sess_private_data);
+			rte_mempool_put(qp->sess_mp, _sess_private_data);
 			sess = NULL;
 		}
 		op->sym->session = (struct rte_cryptodev_sym_session *)_sess;
@@ -265,13 +265,6 @@ ccp_pmd_dequeue_burst(void *queue_pair, struct rte_crypto_op **ops,
 	for (i = 0; i < nb_dequeued; i++)
 		if (unlikely(ops[i]->sess_type ==
 			     RTE_CRYPTO_OP_SESSIONLESS)) {
-			struct ccp_session *sess = (struct ccp_session *)
-					get_sym_session_private_data(
-						ops[i]->sym->session,
-						ccp_cryptodev_driver_id);
-
-			rte_mempool_put(qp->sess_mp_priv,
-					sess);
 			rte_mempool_put(qp->sess_mp,
 					ops[i]->sym->session);
 			ops[i]->sym->session = NULL;
@@ -290,9 +283,6 @@ static struct rte_pci_id ccp_pci_id[] = {
 	},
 	{
 		RTE_PCI_DEVICE(0x1022, 0x1468), /* AMD CCP-5b */
-	},
-	{
-		RTE_PCI_DEVICE(0x1022, 0x15df), /* AMD CCP RV */
 	},
 	{.device_id = 0},
 };
@@ -324,8 +314,9 @@ cryptodev_ccp_create(const char *name,
 	struct ccp_private *internals;
 
 	if (init_params->def_p.name[0] == '\0')
-		strlcpy(init_params->def_p.name, name,
-			sizeof(init_params->def_p.name));
+		snprintf(init_params->def_p.name,
+			 sizeof(init_params->def_p.name),
+			 "%s", name);
 
 	dev = rte_cryptodev_pmd_create(init_params->def_p.name,
 				       &vdev->device,
@@ -352,8 +343,7 @@ cryptodev_ccp_create(const char *name,
 
 	dev->feature_flags = RTE_CRYPTODEV_FF_SYMMETRIC_CRYPTO |
 			RTE_CRYPTODEV_FF_HW_ACCELERATED |
-			RTE_CRYPTODEV_FF_SYM_OPERATION_CHAINING |
-			RTE_CRYPTODEV_FF_SYM_SESSIONLESS;
+			RTE_CRYPTODEV_FF_SYM_OPERATION_CHAINING;
 
 	internals = dev->data->dev_private;
 

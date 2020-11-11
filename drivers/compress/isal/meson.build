@@ -3,10 +3,11 @@
 
 dep = dependency('libisal', required: false)
 if not dep.found()
-	build = false
-	reason = 'missing dependency, "libisal"'
+       build =false
 endif
 
 deps += 'bus_vdev'
 sources = files('isal_compress_pmd.c', 'isal_compress_pmd_ops.c')
 ext_deps += dep
+
+allow_experimental_apis = true

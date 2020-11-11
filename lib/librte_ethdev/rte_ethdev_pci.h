@@ -1,5 +1,7 @@
-/* SPDX-License-Identifier: BSD-3-Clause
- * Copyright(c) 2017 Brocade Communications Systems, Inc.
+/*-
+ *   BSD LICENSE
+ *
+ *   Copyright(c) 2017 Brocade Communications Systems, Inc.
  *   Author: Jan Blunck <jblunck@infradead.org>
  *
  *   Redistribution and use in source and binary forms, with or without

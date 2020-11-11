@@ -12,6 +12,8 @@ LDLIBS += -lrte_mempool
 
 EXPORT_MAP := rte_gso_version.map
 
+LIBABIVER := 1
+
 #source files
 SRCS-$(CONFIG_RTE_LIBRTE_GSO) += rte_gso.c
 SRCS-$(CONFIG_RTE_LIBRTE_GSO) += gso_common.c

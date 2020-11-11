@@ -4,7 +4,6 @@
 #include <string.h>
 
 #include <rte_eal.h>
-#include <rte_errno.h>
 #include <rte_alarm.h>
 #include <rte_string_fns.h>
 #include <rte_devargs.h>
@@ -201,11 +200,6 @@ handle_secondary_request(const struct rte_mp_msg *msg, const void *peer)
 	 * when it is ready.
 	 */
 	bundle->peer = strdup(peer);
-	if (bundle->peer == NULL) {
-		free(bundle);
-		RTE_LOG(ERR, EAL, "not enough memory\n");
-		return send_response_to_secondary(req, -ENOMEM, peer);
-	}
 
 	/**
 	 * We are at IPC callback thread, sync IPC is not allowed due to
@@ -319,7 +313,6 @@ handle_primary_request(const struct rte_mp_msg *msg, const void *peer)
 
 	bundle = calloc(1, sizeof(*bundle));
 	if (bundle == NULL) {
-		RTE_LOG(ERR, EAL, "not enough memory\n");
 		resp->result = -ENOMEM;
 		ret = rte_mp_reply(&mp_resp, peer);
 		if (ret)
@@ -334,15 +327,6 @@ handle_primary_request(const struct rte_mp_msg *msg, const void *peer)
 	 * when it is ready.
 	 */
 	bundle->peer = (void *)strdup(peer);
-	if (bundle->peer == NULL) {
-		RTE_LOG(ERR, EAL, "not enough memory\n");
-		free(bundle);
-		resp->result = -ENOMEM;
-		ret = rte_mp_reply(&mp_resp, peer);
-		if (ret)
-			RTE_LOG(ERR, EAL, "failed to send reply to primary request\n");
-		return ret;
-	}
 
 	/**
 	 * We are at IPC callback thread, sync IPC is not allowed due to
@@ -405,11 +389,7 @@ int eal_dev_hotplug_request_to_secondary(struct eal_dev_mp_req *req)
 
 	ret = rte_mp_request_sync(&mp_req, &mp_reply, &ts);
 	if (ret != 0) {
-		/* if IPC is not supported, behave as if the call succeeded */
-		if (rte_errno != ENOTSUP)
-			RTE_LOG(ERR, EAL, "rte_mp_request_sync failed\n");
-		else
-			ret = 0;
+		RTE_LOG(ERR, EAL, "rte_mp_request_sync failed\n");
 		return ret;
 	}
 
@@ -445,8 +425,7 @@ int eal_mp_dev_hotplug_init(void)
 	if (rte_eal_process_type() == RTE_PROC_PRIMARY) {
 		ret = rte_mp_action_register(EAL_DEV_MP_ACTION_REQUEST,
 					handle_secondary_request);
-		/* primary is allowed to not support IPC */
-		if (ret != 0 && rte_errno != ENOTSUP) {
+		if (ret != 0) {
 			RTE_LOG(ERR, EAL, "Couldn't register '%s' action\n",
 				EAL_DEV_MP_ACTION_REQUEST);
 			return ret;

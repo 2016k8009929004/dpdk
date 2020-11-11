@@ -73,7 +73,14 @@ number of the virtio-crypto device:
     echo -n 0000:00:04.0 > /sys/bus/pci/drivers/virtio-pci/unbind
     echo "1af4 1054" > /sys/bus/pci/drivers/uio_pci_generic/new_id
 
-Finally the front-end virtio crypto PMD driver can be installed.
+Finally the front-end virtio crypto PMD driver can be installed:
+
+.. code-block:: console
+
+    cd to the top-level DPDK directory
+    sed -i 's,\(CONFIG_RTE_LIBRTE_PMD_VIRTIO_CRYPTO\)=n,\1=y,' config/common_base
+    make config T=x86_64-native-linuxapp-gcc
+    make install T=x86_64-native-linuxapp-gcc
 
 Tests
 -----
@@ -84,9 +91,9 @@ The unit test cases can be tested as below:
 
     reserve enough huge pages
     cd to the top-level DPDK directory
-    export RTE_TARGET=x86_64-native-linux-gcc
+    export RTE_TARGET=x86_64-native-linuxapp-gcc
     export RTE_SDK=`pwd`
-    cd to app/test
+    cd to test/test
     type the command "make" to compile
     run the tests with "./test"
     type the command "cryptodev_virtio_autotest" to test
@@ -97,7 +104,7 @@ The performance can be tested as below:
 
     reserve enough huge pages
     cd to the top-level DPDK directory
-    export RTE_TARGET=x86_64-native-linux-gcc
+    export RTE_TARGET=x86_64-native-linuxapp-gcc
     export RTE_SDK=`pwd`
     cd to app/test-crypto-perf
     type the command "make" to compile

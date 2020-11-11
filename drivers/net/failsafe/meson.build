@@ -5,11 +5,13 @@ cflags += '-std=gnu99'
 cflags += '-D_DEFAULT_SOURCE'
 cflags += '-D_XOPEN_SOURCE=700'
 cflags += '-pedantic'
-if is_linux
+if host_machine.system() == 'linux'
 	cflags += '-DLINUX'
 else
 	cflags += '-DBSD'
 endif
+
+allow_experimental_apis = true
 
 sources = files('failsafe_args.c',
 	'failsafe.c',

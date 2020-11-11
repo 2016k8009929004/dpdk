@@ -58,8 +58,6 @@ Cipher algorithms:
 * ``RTE_CRYPTO_CIPHER_AES128_CTR``
 * ``RTE_CRYPTO_CIPHER_AES192_CTR``
 * ``RTE_CRYPTO_CIPHER_AES256_CTR``
-* ``RTE_CRYPTO_CIPHER_SNOW3G_UEA2``
-* ``RTE_CRYPTO_CIPHER_ZUC_EEA3``
 
 Hash algorithms:
 
@@ -68,9 +66,7 @@ Hash algorithms:
 * ``RTE_CRYPTO_AUTH_SHA256_HMAC``
 * ``RTE_CRYPTO_AUTH_SHA384_HMAC``
 * ``RTE_CRYPTO_AUTH_SHA512_HMAC``
-* ``RTE_CRYPTO_AUTH_SNOW3G_UIA2``
 * ``RTE_CRYPTO_AUTH_MD5_HMAC``
-* ``RTE_CRYPTO_AUTH_ZUC_EIA3``
 
 AEAD algorithms:
 
@@ -135,7 +131,7 @@ following ``make`` command:
 .. code-block:: console
 
    cd <DPDK-source-directory>
-   make config T=arm64-dpaa-linux-gcc install
+   make config T=arm64-dpaa-linuxapp-gcc install
 
 Enabling logs
 -------------

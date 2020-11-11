@@ -5,7 +5,6 @@
 
 #include "vnic_dev.h"
 #include "vnic_cq.h"
-#include <rte_memzone.h>
 
 void vnic_cq_free(struct vnic_cq *cq)
 {
@@ -19,7 +18,7 @@ int vnic_cq_alloc(struct vnic_dev *vdev, struct vnic_cq *cq, unsigned int index,
 	unsigned int desc_count, unsigned int desc_size)
 {
 	int err;
-	char res_name[RTE_MEMZONE_NAMESIZE];
+	char res_name[NAME_MAX];
 	static int instance;
 
 	cq->index = index;
@@ -44,11 +43,11 @@ void vnic_cq_init(struct vnic_cq *cq, unsigned int flow_control_enable,
 	unsigned int color_enable, unsigned int cq_head, unsigned int cq_tail,
 	unsigned int cq_tail_color, unsigned int interrupt_enable,
 	unsigned int cq_entry_enable, unsigned int cq_message_enable,
-	unsigned int interrupt_offset, uint64_t cq_message_addr)
+	unsigned int interrupt_offset, u64 cq_message_addr)
 {
-	uint64_t paddr;
+	u64 paddr;
 
-	paddr = (uint64_t)cq->ring.base_addr | VNIC_PADDR_TARGET;
+	paddr = (u64)cq->ring.base_addr | VNIC_PADDR_TARGET;
 	writeq(paddr, &cq->ctrl->ring_base);
 	iowrite32(cq->ring.desc_count, &cq->ctrl->ring_size);
 	iowrite32(flow_control_enable, &cq->ctrl->flow_control_enable);

@@ -90,15 +90,17 @@ BIOS Settings
 The following are some recommendations on BIOS settings. Different platforms will have different BIOS naming
 so the following is mainly for reference:
 
-#. Establish the steady state for the system, consider reviewing BIOS settings desired for best performance characteristic e.g. optimize for performance or energy efficiency.
+#. Before starting consider resetting all BIOS settings to their default.
 
-#. Match the BIOS settings to the needs of the application you are testing.
+#. Disable all power saving options such as: Power performance tuning, CPU P-State, CPU C3 Report and CPU C6 Report.
 
-#. Typically, **Performance** as the CPU Power and Performance policy is a reasonable starting point.
+#. Select **Performance** as the CPU Power and Performance policy.
 
-#. Consider using Turbo Boost to increase the frequency on cores.
+#. Disable Turbo Boost to ensure the performance scaling increases with the number of cores.
 
-#. Disable all virtualization options when you test the physical function of the NIC, and turn on VT-d if you wants to use VFIO.
+#. Set memory frequency to the highest available number, NOT auto.
+
+#. Disable all virtualization options when you test the physical function of the NIC, and turn on ``VT-d`` if you wants to use VFIO.
 
 
 Linux boot command line
@@ -124,10 +126,16 @@ The following are some recommendations on GRUB boot settings:
 Configurations before running DPDK
 ----------------------------------
 
-1. Reserve huge pages.
+1. Build the DPDK target and reserve huge pages.
    See the earlier section on :ref:`linux_gsg_hugepages` for more details.
 
+   The following shell commands may help with building and configuration:
+
    .. code-block:: console
+
+      # Build DPDK target.
+      cd dpdk_folder
+      make install T=x86_64-native-linuxapp-gcc -j
 
       # Get the hugepage size.
       awk '/Hugepagesize/ {print $2}' /proc/meminfo

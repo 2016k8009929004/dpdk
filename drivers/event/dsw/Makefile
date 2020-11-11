@@ -5,6 +5,7 @@ include $(RTE_SDK)/mk/rte.vars.mk
 
 LIB = librte_pmd_dsw_event.a
 
+CFLAGS += -DALLOW_EXPERIMENTAL_API
 CFLAGS += -O3
 CFLAGS += $(WERROR_FLAGS)
 ifneq ($(CONFIG_RTE_TOOLCHAIN_ICC),y)
@@ -17,6 +18,8 @@ LDLIBS += -lrte_mempool
 LDLIBS += -lrte_ring
 LDLIBS += -lrte_eventdev
 LDLIBS += -lrte_bus_vdev
+
+LIBABIVER := 1
 
 EXPORT_MAP := rte_pmd_dsw_event_version.map
 

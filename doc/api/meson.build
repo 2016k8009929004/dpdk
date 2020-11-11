@@ -15,7 +15,8 @@ generate_doxygen = find_program('generate_doxygen.sh')
 generate_examples = find_program('generate_examples.sh')
 generate_css = find_program('doxy-html-custom.sh')
 
-htmldir = join_paths(get_option('datadir'), 'doc', 'dpdk')
+inputdir = join_paths(meson.source_root(), 'examples')
+htmldir = join_paths('share', 'doc', 'dpdk')
 
 # due to the following bug: https://github.com/mesonbuild/meson/issues/4107
 # if install is set to true it will override build_by_default and it will
@@ -23,9 +24,9 @@ htmldir = join_paths(get_option('datadir'), 'doc', 'dpdk')
 # false it would be impossible to install the docs.
 # So use a configure option for now.
 example = custom_target('examples.dox',
+	input: inputdir,
 	output: 'examples.dox',
-	command: [generate_examples, join_paths(meson.source_root(), 'examples'), '@OUTPUT@'],
-	depfile: 'examples.dox.d',
+	command: [generate_examples, '@INPUT@', '@OUTPUT@'],
 	install: get_option('enable_docs'),
 	install_dir: htmldir,
 	build_by_default: get_option('enable_docs'))
@@ -46,7 +47,6 @@ doxy_build = custom_target('doxygen',
 	depends: example,
 	input: doxy_conf,
 	output: 'api',
-	depfile: 'api.d',
 	command: [generate_doxygen, '@INPUT@', '@OUTPUT@', generate_css],
 	install: get_option('enable_docs'),
 	install_dir: htmldir,

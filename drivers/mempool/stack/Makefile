@@ -13,9 +13,11 @@ CFLAGS += $(WERROR_FLAGS)
 
 # Headers
 CFLAGS += -I$(RTE_SDK)/lib/librte_mempool
-LDLIBS += -lrte_eal -lrte_mempool -lrte_stack
+LDLIBS += -lrte_eal -lrte_mempool -lrte_ring
 
 EXPORT_MAP := rte_mempool_stack_version.map
+
+LIBABIVER := 1
 
 SRCS-$(CONFIG_RTE_DRIVER_MEMPOOL_STACK) += rte_mempool_stack.c
 

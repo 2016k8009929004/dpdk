@@ -142,16 +142,14 @@ struct ep_policy {
  *  - 0 on success.
  *  - Negative on error.
  */
-__rte_experimental
-int
+int __rte_experimental
 rte_power_empty_poll_stat_init(struct ep_params **eptr, uint8_t *freq_tlb,
 		struct ep_policy *policy);
 
 /**
  * Free the resource hold by power management system.
  */
-__rte_experimental
-void
+void __rte_experimental
 rte_power_empty_poll_stat_free(void);
 
 /**
@@ -165,8 +163,7 @@ rte_power_empty_poll_stat_free(void);
  *  - 0 on success.
  *  - Negative on error.
  */
-__rte_experimental
-int
+int __rte_experimental
 rte_power_empty_poll_stat_update(unsigned int lcore_id);
 
 /**
@@ -181,8 +178,7 @@ rte_power_empty_poll_stat_update(unsigned int lcore_id);
  *  - 0 on success.
  *  - Negative on error.
  */
-__rte_experimental
-int
+int __rte_experimental
 rte_power_poll_stat_update(unsigned int lcore_id, uint8_t nb_pkt);
 
 /**
@@ -194,8 +190,7 @@ rte_power_poll_stat_update(unsigned int lcore_id, uint8_t nb_pkt);
  * @return
  *  Current lcore empty poll counter value.
  */
-__rte_experimental
-uint64_t
+uint64_t __rte_experimental
 rte_power_empty_poll_stat_fetch(unsigned int lcore_id);
 
 /**
@@ -207,8 +202,7 @@ rte_power_empty_poll_stat_fetch(unsigned int lcore_id);
  * @return
  *  Current lcore valid poll counter value.
  */
-__rte_experimental
-uint64_t
+uint64_t __rte_experimental
 rte_power_poll_stat_fetch(unsigned int lcore_id);
 
 /**
@@ -219,8 +213,7 @@ rte_power_poll_stat_fetch(unsigned int lcore_id);
  * @param  arg
  *  The customized parameter
  */
-__rte_experimental
-void
+void  __rte_experimental
 rte_empty_poll_detection(struct rte_timer *tim, void *arg);
 
 #ifdef __cplusplus

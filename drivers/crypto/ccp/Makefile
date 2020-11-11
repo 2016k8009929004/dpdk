@@ -11,6 +11,9 @@ CFLAGS += -O3
 CFLAGS += -I$(SRCDIR)
 CFLAGS += $(WERROR_FLAGS)
 
+# library version
+LIBABIVER := 1
+
 # external library include paths
 LDLIBS += -lcrypto
 LDLIBS += -lrte_eal -lrte_mbuf -lrte_mempool -lrte_ring

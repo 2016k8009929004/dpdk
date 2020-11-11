@@ -14,7 +14,10 @@
 #define SLE_VERSION(a, b, c) KERNEL_VERSION(a, b, c)
 #endif
 #ifdef CONFIG_SUSE_KERNEL
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 57))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 3, 18))
+/* SLES15 SP2 is 5.3.18 based */
+#define SLE_VERSION_CODE SLE_VERSION(15, 2, 0)
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 57))
 /* SLES12SP3 is at least 4.4.57+ based */
 #define SLE_VERSION_CODE SLE_VERSION(12, 3, 0)
 #elif (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 12, 28))
@@ -114,21 +117,8 @@
 #define ndo_change_mtu ndo_change_mtu_rh74
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
-#define HAVE_MAX_MTU_PARAM
-#endif
-
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
 #define HAVE_SIGNAL_FUNCTIONS_OWN_HEADER
-#endif
-
-/*
- * iova to kva mapping support can be provided since 4.6.0, but required
- * kernel version increased to >= 4.10.0 because of the updates in
- * get_user_pages_remote() kernel API
- */
-#if KERNEL_VERSION(4, 10, 0) <= LINUX_VERSION_CODE
-#define HAVE_IOVA_TO_KVA_MAPPING_SUPPORT
 #endif
 
 #if KERNEL_VERSION(5, 6, 0) <= LINUX_VERSION_CODE

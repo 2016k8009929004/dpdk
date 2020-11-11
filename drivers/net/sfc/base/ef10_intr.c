@@ -1,14 +1,14 @@
 /* SPDX-License-Identifier: BSD-3-Clause
  *
- * Copyright(c) 2019-2020 Xilinx, Inc.
- * Copyright(c) 2012-2019 Solarflare Communications Inc.
+ * Copyright (c) 2012-2018 Solarflare Communications Inc.
+ * All rights reserved.
  */
 
 #include "efx.h"
 #include "efx_impl.h"
 
 
-#if EFX_OPTS_EF10()
+#if EFSYS_OPT_HUNTINGTON || EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2
 
 	__checkReturn	efx_rc_t
 ef10_intr_init(
@@ -55,7 +55,9 @@ efx_mcdi_trigger_interrupt(
 		MC_CMD_TRIGGER_INTERRUPT_OUT_LEN);
 	efx_rc_t rc;
 
-	EFSYS_ASSERT(EFX_FAMILY_IS_EF10(enp));
+	EFSYS_ASSERT(enp->en_family == EFX_FAMILY_HUNTINGTON ||
+	    enp->en_family == EFX_FAMILY_MEDFORD ||
+	    enp->en_family == EFX_FAMILY_MEDFORD2);
 
 	if (level >= enp->en_nic_cfg.enc_intr_limit) {
 		rc = EINVAL;
@@ -126,7 +128,9 @@ ef10_intr_status_line(
 {
 	efx_dword_t dword;
 
-	EFSYS_ASSERT(EFX_FAMILY_IS_EF10(enp));
+	EFSYS_ASSERT(enp->en_family == EFX_FAMILY_HUNTINGTON ||
+	    enp->en_family == EFX_FAMILY_MEDFORD ||
+	    enp->en_family == EFX_FAMILY_MEDFORD2);
 
 	/* Read the queue mask and implicitly acknowledge the interrupt. */
 	EFX_BAR_READD(enp, ER_DZ_BIU_INT_ISR_REG, &dword, B_FALSE);
@@ -143,7 +147,9 @@ ef10_intr_status_message(
 	__in		unsigned int message,
 	__out		boolean_t *fatalp)
 {
-	EFSYS_ASSERT(EFX_FAMILY_IS_EF10(enp));
+	EFSYS_ASSERT(enp->en_family == EFX_FAMILY_HUNTINGTON ||
+	    enp->en_family == EFX_FAMILY_MEDFORD ||
+	    enp->en_family == EFX_FAMILY_MEDFORD2);
 
 	_NOTE(ARGUNUSED(enp, message))
 
@@ -166,4 +172,4 @@ ef10_intr_fini(
 	_NOTE(ARGUNUSED(enp))
 }
 
-#endif	/* EFX_OPTS_EF10() */
+#endif	/* EFSYS_OPT_HUNTINGTON || EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2 */

@@ -19,6 +19,8 @@ LDLIBS += -lrte_bus_pci
 
 EXPORT_MAP := rte_pmd_bnx2x_version.map
 
+LIBABIVER := 1
+
 #
 # all source are stored in SRCS-y
 #

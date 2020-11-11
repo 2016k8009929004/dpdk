@@ -4,7 +4,7 @@
 
 #include <stdint.h>
 
-#ifdef RTE_EXEC_ENV_LINUX
+#ifdef RTE_EXEC_ENV_LINUXAPP
  #include <dirent.h>
  #include <fcntl.h>
 #endif

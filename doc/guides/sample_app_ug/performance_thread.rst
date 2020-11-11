@@ -1097,7 +1097,7 @@ invokes the genuine pthread function.
 
 The function ``pthread_exit()`` has additional special handling. The standard
 system header file pthread.h declares ``pthread_exit()`` with
-``__rte_noreturn`` this is an optimization that is possible because
+``__attribute__((noreturn))`` this is an optimization that is possible because
 the pthread is terminating and this enables the compiler to omit the normal
 handling of stack and protection of registers since the function is not
 expected to return, and in fact the thread is being destroyed. These
@@ -1158,7 +1158,7 @@ To build and run the pthread shim example
 
    .. code-block:: console
 
-       export RTE_TARGET=x86_64-native-linux-gcc
+       export RTE_TARGET=x86_64-native-linuxapp-gcc
 
    See the DPDK Getting Started Guide for possible RTE_TARGET values.
 

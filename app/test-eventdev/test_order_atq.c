@@ -9,7 +9,7 @@
 
 /* See http://doc.dpdk.org/guides/tools/testeventdev.html for test details */
 
-static __rte_always_inline void
+static inline __attribute__((always_inline)) void
 order_atq_process_stage_0(struct rte_event *const ev)
 {
 	ev->sub_event_type = 1; /* move to stage 1 (atomic) on the same queue */
@@ -118,7 +118,16 @@ order_atq_eventdev_setup(struct evt_test *test, struct evt_options *opt)
 	/* number of active worker cores + 1 producer */
 	const uint8_t nb_ports = nb_workers + 1;
 
-	ret = evt_configure_eventdev(opt, NB_QUEUES, nb_ports);
+	const struct rte_event_dev_config config = {
+			.nb_event_queues = NB_QUEUES,/* one all types queue */
+			.nb_event_ports = nb_ports,
+			.nb_events_limit  = 4096,
+			.nb_event_queue_flows = opt->nb_flows,
+			.nb_event_port_dequeue_depth = 128,
+			.nb_event_port_enqueue_depth = 128,
+	};
+
+	ret = rte_event_dev_configure(opt->dev_id, &config);
 	if (ret) {
 		evt_err("failed to configure eventdev %d", opt->dev_id);
 		return ret;

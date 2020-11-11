@@ -57,7 +57,6 @@ softnic_link_create(struct pmd_internals *p,
 	struct rte_eth_dev_info port_info;
 	struct softnic_link *link;
 	uint16_t port_id;
-	int ret;
 
 	/* Check input params */
 	if (name == NULL ||
@@ -79,9 +78,7 @@ softnic_link_create(struct pmd_internals *p,
 			return NULL;
 	}
 
-	ret = rte_eth_dev_info_get(port_id, &port_info);
-	if (ret != 0)
-		return NULL;
+	rte_eth_dev_info_get(port_id, &port_info);
 
 	/* Node allocation */
 	link = calloc(1, sizeof(struct softnic_link));

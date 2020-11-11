@@ -6,7 +6,6 @@
 #include <rte_ethdev.h>
 
 #include "rte_eventdev_pmd.h"
-#include "rte_eventdev_trace.h"
 #include "rte_event_eth_tx_adapter.h"
 
 #define TXA_BATCH_SIZE		32
@@ -905,7 +904,7 @@ txa_service_stop(uint8_t id)
 }
 
 
-int
+int __rte_experimental
 rte_event_eth_tx_adapter_create(uint8_t id, uint8_t dev_id,
 				struct rte_event_port_conf *port_conf)
 {
@@ -943,13 +942,12 @@ rte_event_eth_tx_adapter_create(uint8_t id, uint8_t dev_id,
 		txa_dev_id_array[id] = TXA_INVALID_DEV_ID;
 		return ret;
 	}
-	rte_eventdev_trace_eth_tx_adapter_create(id, dev_id, NULL, port_conf,
-		ret);
+
 	txa_dev_id_array[id] = dev_id;
 	return 0;
 }
 
-int
+int __rte_experimental
 rte_event_eth_tx_adapter_create_ext(uint8_t id, uint8_t dev_id,
 				rte_event_eth_tx_adapter_conf_cb conf_cb,
 				void *conf_arg)
@@ -986,14 +984,12 @@ rte_event_eth_tx_adapter_create_ext(uint8_t id, uint8_t dev_id,
 		return ret;
 	}
 
-	rte_eventdev_trace_eth_tx_adapter_create(id, dev_id, conf_cb, conf_arg,
-		ret);
 	txa_dev_id_array[id] = dev_id;
 	return 0;
 }
 
 
-int
+int __rte_experimental
 rte_event_eth_tx_adapter_event_port_get(uint8_t id, uint8_t *event_port_id)
 {
 	TXA_CHECK_OR_ERR_RET(id);
@@ -1001,7 +997,7 @@ rte_event_eth_tx_adapter_event_port_get(uint8_t id, uint8_t *event_port_id)
 	return txa_service_event_port_get(id, event_port_id);
 }
 
-int
+int __rte_experimental
 rte_event_eth_tx_adapter_free(uint8_t id)
 {
 	int ret;
@@ -1016,11 +1012,10 @@ rte_event_eth_tx_adapter_free(uint8_t id)
 		ret = txa_service_adapter_free(id);
 	txa_dev_id_array[id] = TXA_INVALID_DEV_ID;
 
-	rte_eventdev_trace_eth_tx_adapter_free(id, ret);
 	return ret;
 }
 
-int
+int __rte_experimental
 rte_event_eth_tx_adapter_queue_add(uint8_t id,
 				uint16_t eth_dev_id,
 				int32_t queue)
@@ -1048,12 +1043,10 @@ rte_event_eth_tx_adapter_queue_add(uint8_t id,
 	else
 		ret = txa_service_queue_add(id, txa_evdev(id), eth_dev, queue);
 
-	rte_eventdev_trace_eth_tx_adapter_queue_add(id, eth_dev_id, queue,
-		ret);
 	return ret;
 }
 
-int
+int __rte_experimental
 rte_event_eth_tx_adapter_queue_del(uint8_t id,
 				uint16_t eth_dev_id,
 				int32_t queue)
@@ -1080,12 +1073,10 @@ rte_event_eth_tx_adapter_queue_del(uint8_t id,
 	else
 		ret = txa_service_queue_del(id, eth_dev, queue);
 
-	rte_eventdev_trace_eth_tx_adapter_queue_del(id, eth_dev_id, queue,
-		ret);
 	return ret;
 }
 
-int
+int __rte_experimental
 rte_event_eth_tx_adapter_service_id_get(uint8_t id, uint32_t *service_id)
 {
 	TXA_CHECK_OR_ERR_RET(id);
@@ -1093,7 +1084,7 @@ rte_event_eth_tx_adapter_service_id_get(uint8_t id, uint32_t *service_id)
 	return txa_service_id_get(id, service_id);
 }
 
-int
+int __rte_experimental
 rte_event_eth_tx_adapter_start(uint8_t id)
 {
 	int ret;
@@ -1103,11 +1094,10 @@ rte_event_eth_tx_adapter_start(uint8_t id)
 	ret = txa_dev_start(id) ? txa_dev_start(id)(id, txa_evdev(id)) : 0;
 	if (ret == 0)
 		ret = txa_service_start(id);
-	rte_eventdev_trace_eth_tx_adapter_start(id, ret);
 	return ret;
 }
 
-int
+int __rte_experimental
 rte_event_eth_tx_adapter_stats_get(uint8_t id,
 				struct rte_event_eth_tx_adapter_stats *stats)
 {
@@ -1140,7 +1130,7 @@ rte_event_eth_tx_adapter_stats_get(uint8_t id,
 	return ret;
 }
 
-int
+int __rte_experimental
 rte_event_eth_tx_adapter_stats_reset(uint8_t id)
 {
 	int ret;
@@ -1154,7 +1144,7 @@ rte_event_eth_tx_adapter_stats_reset(uint8_t id)
 	return ret;
 }
 
-int
+int __rte_experimental
 rte_event_eth_tx_adapter_stop(uint8_t id)
 {
 	int ret;
@@ -1164,6 +1154,5 @@ rte_event_eth_tx_adapter_stop(uint8_t id)
 	ret = txa_dev_stop(id) ? txa_dev_stop(id)(id,  txa_evdev(id)) : 0;
 	if (ret == 0)
 		ret = txa_service_stop(id);
-	rte_eventdev_trace_eth_tx_adapter_stop(id, ret);
 	return ret;
 }

@@ -14,7 +14,9 @@
 
 #include "bpf_impl.h"
 
-void
+int rte_bpf_logtype;
+
+__rte_experimental void
 rte_bpf_destroy(struct rte_bpf *bpf)
 {
 	if (bpf != NULL) {
@@ -24,7 +26,7 @@ rte_bpf_destroy(struct rte_bpf *bpf)
 	}
 }
 
-int
+__rte_experimental int
 rte_bpf_get_jit(const struct rte_bpf *bpf, struct rte_bpf_jit *jit)
 {
 	if (bpf == NULL || jit == NULL)
@@ -39,10 +41,8 @@ bpf_jit(struct rte_bpf *bpf)
 {
 	int32_t rc;
 
-#if defined(RTE_ARCH_X86_64)
+#ifdef RTE_ARCH_X86_64
 	rc = bpf_jit_x86(bpf);
-#elif defined(RTE_ARCH_ARM64)
-	rc = bpf_jit_arm64(bpf);
 #else
 	rc = -ENOTSUP;
 #endif
@@ -53,4 +53,9 @@ bpf_jit(struct rte_bpf *bpf)
 	return rc;
 }
 
-RTE_LOG_REGISTER(rte_bpf_logtype, lib.bpf, INFO);
+RTE_INIT(rte_bpf_init_log)
+{
+	rte_bpf_logtype = rte_log_register("lib.bpf");
+	if (rte_bpf_logtype >= 0)
+		rte_log_set_level(rte_bpf_logtype, RTE_LOG_INFO);
+}

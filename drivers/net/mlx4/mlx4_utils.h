@@ -6,6 +6,7 @@
 #ifndef MLX4_UTILS_H_
 #define MLX4_UTILS_H_
 
+#include <assert.h>
 #include <stddef.h>
 #include <stdio.h>
 
@@ -24,12 +25,10 @@
 #define bool _Bool
 #endif
 
-extern int mlx4_logtype;
-
-#ifdef RTE_LIBRTE_MLX4_DEBUG
+#ifndef NDEBUG
 
 /*
- * When debugging is enabled (MLX4_DEBUG is defined), file, line and function
+ * When debugging is enabled (NDEBUG not defined), file, line and function
  * information replace the driver name (MLX4_DRIVER_NAME) in log messages.
  */
 
@@ -46,33 +45,31 @@ pmd_drv_log_basename(const char *s)
 }
 
 #define PMD_DRV_LOG(level, ...) \
-	rte_log(RTE_LOG_ ## level, mlx4_logtype, \
+	RTE_LOG(level, PMD, \
 		RTE_FMT("%s:%u: %s(): " RTE_FMT_HEAD(__VA_ARGS__,) "\n", \
 			pmd_drv_log_basename(__FILE__), \
 			__LINE__, \
 			__func__, \
 			RTE_FMT_TAIL(__VA_ARGS__,)))
 #define DEBUG(...) PMD_DRV_LOG(DEBUG, __VA_ARGS__)
-#define MLX4_ASSERT(exp) RTE_VERIFY(exp)
-#define claim_zero(...) MLX4_ASSERT((__VA_ARGS__) == 0)
+#define claim_zero(...) assert((__VA_ARGS__) == 0)
 
-#else /* RTE_LIBRTE_MLX4_DEBUG */
+#else /* NDEBUG */
 
 /*
- * Like MLX4_ASSERT(), DEBUG() becomes a no-op and claim_zero() does not perform
+ * Like assert(), DEBUG() becomes a no-op and claim_zero() does not perform
  * any check when debugging is disabled.
  */
 
 #define PMD_DRV_LOG(level, ...) \
-	rte_log(RTE_LOG_ ## level, mlx4_logtype, \
+	RTE_LOG(level, PMD, \
 		RTE_FMT(MLX4_DRIVER_NAME ": " \
 			RTE_FMT_HEAD(__VA_ARGS__,) "\n", \
 		RTE_FMT_TAIL(__VA_ARGS__,)))
 #define DEBUG(...) (void)0
-#define MLX4_ASSERT(exp) RTE_ASSERT(exp)
 #define claim_zero(...) (__VA_ARGS__)
 
-#endif /* RTE_LIBRTE_MLX4_DEBUG */
+#endif /* NDEBUG */
 
 #define INFO(...) PMD_DRV_LOG(INFO, __VA_ARGS__)
 #define WARN(...) PMD_DRV_LOG(WARNING, __VA_ARGS__)

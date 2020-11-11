@@ -6,7 +6,6 @@
 #include <stdlib.h>
 #include <errno.h>
 
-#include <rte_string_fns.h>
 #include <rte_errno.h>
 #include <rte_common.h>
 #include <rte_eal.h>
@@ -241,7 +240,7 @@ rte_jobstats_init(struct rte_jobstats *job, const char *name,
 	job->target = target;
 	job->update_period_cb = &default_update_function;
 	rte_jobstats_reset(job);
-	strlcpy(job->name, name == NULL ? "" : name, RTE_DIM(job->name));
+	snprintf(job->name, RTE_DIM(job->name), "%s", name == NULL ? "" : name);
 	job->context = NULL;
 
 	return 0;

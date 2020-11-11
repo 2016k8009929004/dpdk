@@ -24,9 +24,6 @@
 #define	I40E_MIN_RING_DESC	64
 #define	I40E_MAX_RING_DESC	4096
 
-#define I40E_FDIR_NUM_TX_DESC   (I40E_FDIR_PRG_PKT_CNT << 1)
-#define I40E_FDIR_NUM_RX_DESC   (I40E_FDIR_PRG_PKT_CNT << 1)
-
 #define I40E_MIN_TSO_MSS          256
 #define I40E_MAX_TSO_MSS          9674
 
@@ -34,13 +31,6 @@
 #define I40E_TX_MAX_MTU_SEG 8
 
 #define I40E_TX_MIN_PKT_LEN 17
-
-/* Shared FDIR masks between scalar / vector drivers */
-#define I40E_RX_DESC_EXT_STATUS_FLEXBH_MASK   0x03
-#define I40E_RX_DESC_EXT_STATUS_FLEXBH_FD_ID  0x01
-#define I40E_RX_DESC_EXT_STATUS_FLEXBH_FLEX   0x02
-#define I40E_RX_DESC_EXT_STATUS_FLEXBL_MASK   0x03
-#define I40E_RX_DESC_EXT_STATUS_FLEXBL_FLEX   0x01
 
 #undef container_of
 #define container_of(ptr, type, member) ({ \
@@ -106,7 +96,6 @@ struct i40e_rx_queue {
 
 	uint16_t port_id; /**< device port ID */
 	uint8_t crc_len; /**< 0 if CRC stripped, 4 otherwise */
-	uint8_t fdir_enabled; /**< 0 if FDIR disabled, 1 when enabled */
 	uint16_t queue_id; /**< RX queue index */
 	uint16_t reg_idx; /**< RX queue register index */
 	uint8_t drop_en; /**< if not 0, set register bit */
@@ -215,7 +204,6 @@ void i40e_dev_free_queues(struct rte_eth_dev *dev);
 void i40e_reset_rx_queue(struct i40e_rx_queue *rxq);
 void i40e_reset_tx_queue(struct i40e_tx_queue *txq);
 void i40e_tx_queue_release_mbufs(struct i40e_tx_queue *txq);
-int i40e_tx_done_cleanup(void *txq, uint32_t free_cnt);
 int i40e_alloc_rx_queue_mbufs(struct i40e_rx_queue *rxq);
 void i40e_rx_queue_release_mbufs(struct i40e_rx_queue *rxq);
 

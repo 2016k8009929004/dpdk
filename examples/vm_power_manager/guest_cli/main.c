@@ -55,11 +55,7 @@ parse_args(int argc, char **argv)
 	int i, cnt, idx;
 
 	policy = get_policy();
-	ret = set_policy_defaults(policy);
-	if (ret != 0) {
-		printf("Failed to set policy defaults\n");
-		return -1;
-	}
+	set_policy_defaults(policy);
 
 	argvopt = argv;
 
@@ -124,10 +120,7 @@ parse_args(int argc, char **argv)
 			for (i = 0; i < MAX_VCPU_PER_VM; i++) {
 				if (ports[i]) {
 					printf("***Using port %d\n", i);
-					if (set_policy_mac(i, idx++) != 0) {
-						printf("Cannot set policy MAC");
-						return -1;
-					}
+					set_policy_mac(i, idx++);
 				}
 			}
 			policy->nb_mac_to_monitor = idx;

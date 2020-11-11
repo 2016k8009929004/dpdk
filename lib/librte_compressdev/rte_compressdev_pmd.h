@@ -59,8 +59,7 @@ struct rte_compressdev_global {
  * @return
  *   - The rte_compressdev structure pointer for the given device identifier.
  */
-__rte_experimental
-struct rte_compressdev *
+struct rte_compressdev * __rte_experimental
 rte_compressdev_pmd_get_named_dev(const char *name);
 
 /**
@@ -172,6 +171,16 @@ typedef int (*compressdev_queue_pair_setup_t)(struct rte_compressdev *dev,
  */
 typedef int (*compressdev_queue_pair_release_t)(struct rte_compressdev *dev,
 		uint16_t qp_id);
+
+/**
+ * Get number of available queue pairs of a device.
+ *
+ * @param dev
+ *   Compress device
+ * @return
+ *   Returns number of queue pairs on success.
+ */
+typedef uint32_t (*compressdev_queue_pair_count_t)(struct rte_compressdev *dev);
 
 /**
  * Create driver private stream data.
@@ -290,8 +299,7 @@ struct rte_compressdev_ops {
  * @return
  *   - Slot in the rte_dev_devices array for a new device;
  */
-__rte_experimental
-struct rte_compressdev *
+struct rte_compressdev * __rte_experimental
 rte_compressdev_pmd_allocate(const char *name, int socket_id);
 
 /**
@@ -306,8 +314,7 @@ rte_compressdev_pmd_allocate(const char *name, int socket_id);
  * @return
  *   - 0 on success, negative on error
  */
-__rte_experimental
-int
+int __rte_experimental
 rte_compressdev_pmd_release_device(struct rte_compressdev *dev);
 
 
@@ -329,8 +336,7 @@ rte_compressdev_pmd_release_device(struct rte_compressdev *dev);
  *  - 0 on success
  *  - errno on failure
  */
-__rte_experimental
-int
+int __rte_experimental
 rte_compressdev_pmd_parse_input_args(
 		struct rte_compressdev_pmd_init_params *params,
 		const char *args);
@@ -351,8 +357,7 @@ rte_compressdev_pmd_parse_input_args(
  *  - comp device instance on success
  *  - NULL on creation failure
  */
-__rte_experimental
-struct rte_compressdev *
+struct rte_compressdev * __rte_experimental
 rte_compressdev_pmd_create(const char *name,
 		struct rte_device *device,
 		size_t private_data_size,
@@ -370,8 +375,7 @@ rte_compressdev_pmd_create(const char *name,
  *  - 0 on success
  *  - errno on failure
  */
-__rte_experimental
-int
+int __rte_experimental
 rte_compressdev_pmd_destroy(struct rte_compressdev *dev);
 
 #ifdef __cplusplus

@@ -1,5 +1,5 @@
-..  SPDX-License-Identifier: BSD-3-Clause
-    Copyright(c) 2017 Intel Corporation.
+..  BSD LICENSE
+    Copyright(c) 2017 Intel Corporation. All rights reserved.
 
 OPDL Eventdev Poll Mode Driver
 ==================================

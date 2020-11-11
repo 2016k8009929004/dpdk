@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: BSD-3-Clause
  *
- * Copyright(c) 2019-2020 Xilinx, Inc.
- * Copyright(c) 2007-2019 Solarflare Communications Inc.
+ * Copyright (c) 2007-2018 Solarflare Communications Inc.
+ * All rights reserved.
  */
 
 #include "efx.h"
@@ -28,7 +28,7 @@ static const efx_phy_ops_t	__efx_phy_siena_ops = {
 };
 #endif	/* EFSYS_OPT_SIENA */
 
-#if EFX_OPTS_EF10()
+#if EFSYS_OPT_HUNTINGTON || EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2
 static const efx_phy_ops_t	__efx_phy_ef10_ops = {
 	ef10_phy_power,			/* epo_power */
 	NULL,				/* epo_reset */
@@ -46,7 +46,7 @@ static const efx_phy_ops_t	__efx_phy_ef10_ops = {
 	ef10_bist_stop,			/* epo_bist_stop */
 #endif	/* EFSYS_OPT_BIST */
 };
-#endif	/* EFX_OPTS_EF10() */
+#endif	/* EFSYS_OPT_HUNTINGTON || EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2 */
 
 	__checkReturn	efx_rc_t
 efx_phy_probe(

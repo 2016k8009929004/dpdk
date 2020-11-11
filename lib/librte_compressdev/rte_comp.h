@@ -323,12 +323,6 @@ struct rte_comp_op {
 	 * If the output data is expected to be bigger than this a chain of
 	 * mbufs can be passed to the PMD if the PMD's capabilities indicate
 	 * it supports this.
-	 *
-	 * @note, if incompressible data is passed to an engine for compression
-	 * using RTE_COMP_ALGO_DEFLATE, it's possible for the output data
-	 * to be larger than the uncompressed data, due to the inclusion
-	 * of the DEFLATE header blocks. The size of m_dst should accommodate
-	 * this, else OUT_OF_SPACE errors can be expected in this case.
 	 */
 
 	struct {
@@ -426,8 +420,7 @@ struct rte_comp_op {
  *  - On success pointer to mempool
  *  - On failure NULL
  */
-__rte_experimental
-struct rte_mempool *
+struct rte_mempool * __rte_experimental
 rte_comp_op_pool_create(const char *name,
 		unsigned int nb_elts, unsigned int cache_size,
 		uint16_t user_size, int socket_id);
@@ -442,8 +435,7 @@ rte_comp_op_pool_create(const char *name,
  * - On success returns a valid rte_comp_op structure
  * - On failure returns NULL
  */
-__rte_experimental
-struct rte_comp_op *
+struct rte_comp_op * __rte_experimental
 rte_comp_op_alloc(struct rte_mempool *mempool);
 
 /**
@@ -459,8 +451,7 @@ rte_comp_op_alloc(struct rte_mempool *mempool);
  *   - nb_ops: Success, the nb_ops requested was allocated
  *   - 0: Not enough entries in the mempool; no ops are retrieved.
  */
-__rte_experimental
-int
+int __rte_experimental
 rte_comp_op_bulk_alloc(struct rte_mempool *mempool,
 		struct rte_comp_op **ops, uint16_t nb_ops);
 
@@ -472,24 +463,8 @@ rte_comp_op_bulk_alloc(struct rte_mempool *mempool,
  * @param op
  *   Compress operation
  */
-__rte_experimental
-void
+void __rte_experimental
 rte_comp_op_free(struct rte_comp_op *op);
-
-/**
- * Bulk free operation structures
- * If operations have been allocated from an rte_mempool, then the operations
- * will be returned to the mempool.
- * The array entry will be cleared.
- *
- * @param ops
- *   Array of Compress operations
- * @param nb_ops
- *   Number of operations to free
- */
-__rte_experimental
-void
-rte_comp_op_bulk_free(struct rte_comp_op **ops, uint16_t nb_ops);
 
 /**
  * Get the name of a compress service feature flag
@@ -500,8 +475,7 @@ rte_comp_op_bulk_free(struct rte_comp_op **ops, uint16_t nb_ops);
  * @return
  *   The name of this flag, or NULL if it's not a valid feature flag.
  */
-__rte_experimental
-const char *
+const char * __rte_experimental
 rte_comp_get_feature_name(uint64_t flag);
 
 #ifdef __cplusplus

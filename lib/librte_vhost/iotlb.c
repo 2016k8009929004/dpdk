@@ -1,5 +1,33 @@
-/* SPDX-License-Identifier: BSD-3-Clause
- * Copyright (c) 2017 Red Hat, Inc.
+/*-
+ *   BSD LICENSE
+ *
+ *   Copyright (c) 2017 Red Hat, Inc.
+ *
+ *   Redistribution and use in source and binary forms, with or without
+ *   modification, are permitted provided that the following conditions
+ *   are met:
+ *
+ *     * Redistributions of source code must retain the above copyright
+ *       notice, this list of conditions and the following disclaimer.
+ *     * Redistributions in binary form must reproduce the above copyright
+ *       notice, this list of conditions and the following disclaimer in
+ *       the documentation and/or other materials provided with the
+ *       distribution.
+ *     * Neither the name of Intel Corporation nor the names of its
+ *       contributors may be used to endorse or promote products derived
+ *       from this software without specific prior written permission.
+ *
+ *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 #ifdef RTE_LIBRTE_VHOST_NUMA
@@ -70,14 +98,14 @@ vhost_user_iotlb_pending_insert(struct vhost_virtqueue *vq,
 
 	ret = rte_mempool_get(vq->iotlb_pool, (void **)&node);
 	if (ret) {
-		VHOST_LOG_CONFIG(DEBUG, "IOTLB pool empty, clear entries\n");
+		RTE_LOG(DEBUG, VHOST_CONFIG, "IOTLB pool empty, clear entries\n");
 		if (!TAILQ_EMPTY(&vq->iotlb_pending_list))
 			vhost_user_iotlb_pending_remove_all(vq);
 		else
 			vhost_user_iotlb_cache_random_evict(vq);
 		ret = rte_mempool_get(vq->iotlb_pool, (void **)&node);
 		if (ret) {
-			VHOST_LOG_CONFIG(ERR, "IOTLB pool still empty, failure\n");
+			RTE_LOG(ERR, VHOST_CONFIG, "IOTLB pool still empty, failure\n");
 			return;
 		}
 	}
@@ -163,14 +191,14 @@ vhost_user_iotlb_cache_insert(struct vhost_virtqueue *vq, uint64_t iova,
 
 	ret = rte_mempool_get(vq->iotlb_pool, (void **)&new_node);
 	if (ret) {
-		VHOST_LOG_CONFIG(DEBUG, "IOTLB pool empty, clear entries\n");
+		RTE_LOG(DEBUG, VHOST_CONFIG, "IOTLB pool empty, clear entries\n");
 		if (!TAILQ_EMPTY(&vq->iotlb_list))
 			vhost_user_iotlb_cache_random_evict(vq);
 		else
 			vhost_user_iotlb_pending_remove_all(vq);
 		ret = rte_mempool_get(vq->iotlb_pool, (void **)&new_node);
 		if (ret) {
-			VHOST_LOG_CONFIG(ERR, "IOTLB pool still empty, failure\n");
+			RTE_LOG(ERR, VHOST_CONFIG, "IOTLB pool still empty, failure\n");
 			return;
 		}
 	}
@@ -310,7 +338,7 @@ vhost_user_iotlb_init(struct virtio_net *dev, int vq_index)
 
 	snprintf(pool_name, sizeof(pool_name), "iotlb_%u_%d_%d",
 			getpid(), dev->vid, vq_index);
-	VHOST_LOG_CONFIG(DEBUG, "IOTLB cache name: %s\n", pool_name);
+	RTE_LOG(DEBUG, VHOST_CONFIG, "IOTLB cache name: %s\n", pool_name);
 
 	/* If already created, free it and recreate */
 	vq->iotlb_pool = rte_mempool_lookup(pool_name);
@@ -324,7 +352,7 @@ vhost_user_iotlb_init(struct virtio_net *dev, int vq_index)
 			MEMPOOL_F_SP_PUT |
 			MEMPOOL_F_SC_GET);
 	if (!vq->iotlb_pool) {
-		VHOST_LOG_CONFIG(ERR,
+		RTE_LOG(ERR, VHOST_CONFIG,
 				"Failed to create IOTLB cache pool (%s)\n",
 				pool_name);
 		return -1;
@@ -334,3 +362,4 @@ vhost_user_iotlb_init(struct virtio_net *dev, int vq_index)
 
 	return 0;
 }
+

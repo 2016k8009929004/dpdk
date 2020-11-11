@@ -26,12 +26,12 @@ struct core_details {
 	uint16_t freq_directions[FREQ_WINDOW_SIZE];
 	uint16_t freq_window_idx;
 	uint16_t freq_state;
-	float branch_ratio_threshold;
 };
 
 struct core_info {
 	uint16_t core_count;
 	struct core_details *cd;
+	float branch_ratio_threshold;
 };
 
 #define BRANCH_RATIO_THRESHOLD 0.1
@@ -44,6 +44,8 @@ core_info_init(void);
 
 #define RTE_LOGTYPE_POWER_MANAGER RTE_LOGTYPE_USER1
 
+/* Maximum number of CPUS to manage */
+#define POWER_MGR_MAX_CPUS 64
 /**
  * Initialize power management.
  * Initializes resources and verifies the number of CPUs on the system.

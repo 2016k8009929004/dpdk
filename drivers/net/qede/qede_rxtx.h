@@ -70,7 +70,7 @@
 #define QEDE_ETH_OVERHEAD	(((2 * QEDE_VLAN_TAG_SIZE)) \
 				 + (QEDE_LLC_SNAP_HDR_LEN) + 2)
 
-#define QEDE_MAX_ETHER_HDR_LEN	(RTE_ETHER_HDR_LEN + QEDE_ETH_OVERHEAD)
+#define QEDE_MAX_ETHER_HDR_LEN	(ETHER_HDR_LEN + QEDE_ETH_OVERHEAD)
 
 #define QEDE_RSS_OFFLOAD_ALL    (ETH_RSS_IPV4			|\
 				 ETH_RSS_NONFRAG_IPV4_TCP	|\
@@ -275,8 +275,6 @@ uint16_t qede_xmit_pkts(void *p_txq, struct rte_mbuf **tx_pkts,
 			uint16_t nb_pkts);
 uint16_t qede_xmit_pkts_cmt(void *p_txq, struct rte_mbuf **tx_pkts,
 			    uint16_t nb_pkts);
-uint16_t qede_xmit_pkts_regular(void *p_txq, struct rte_mbuf **tx_pkts,
-				uint16_t nb_pkts);
 
 uint16_t qede_xmit_prep_pkts(void *p_txq, struct rte_mbuf **tx_pkts,
 			     uint16_t nb_pkts);
@@ -285,9 +283,7 @@ uint16_t qede_recv_pkts(void *p_rxq, struct rte_mbuf **rx_pkts,
 			uint16_t nb_pkts);
 uint16_t qede_recv_pkts_cmt(void *p_rxq, struct rte_mbuf **rx_pkts,
 			    uint16_t nb_pkts);
-uint16_t
-qede_recv_pkts_regular(void *p_rxq, struct rte_mbuf **rx_pkts,
-		       uint16_t nb_pkts);
+
 uint16_t qede_rxtx_pkts_dummy(void *p_rxq,
 			      struct rte_mbuf **pkts,
 			      uint16_t nb_pkts);

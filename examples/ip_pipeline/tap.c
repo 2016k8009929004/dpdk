@@ -3,7 +3,7 @@
  */
 
 #include <netinet/in.h>
-#ifdef RTE_EXEC_ENV_LINUX
+#ifdef RTE_EXEC_ENV_LINUXAPP
 #include <linux/if.h>
 #include <linux/if_tun.h>
 #endif
@@ -46,7 +46,7 @@ tap_find(const char *name)
 	return NULL;
 }
 
-#ifndef RTE_EXEC_ENV_LINUX
+#ifndef RTE_EXEC_ENV_LINUXAPP
 
 struct tap *
 tap_create(const char *name __rte_unused)
@@ -75,7 +75,7 @@ tap_create(const char *name)
 
 	memset(&ifr, 0, sizeof(ifr));
 	ifr.ifr_flags = IFF_TAP | IFF_NO_PI; /* No packet information */
-	strlcpy(ifr.ifr_name, name, IFNAMSIZ);
+	snprintf(ifr.ifr_name, IFNAMSIZ, "%s", name);
 
 	status = ioctl(fd, TUNSETIFF, (void *) &ifr);
 	if (status < 0) {

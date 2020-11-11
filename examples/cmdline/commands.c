@@ -12,8 +12,12 @@
 #include <errno.h>
 #include <netinet/in.h>
 #include <termios.h>
-#ifdef RTE_EXEC_ENV_FREEBSD
-#include <sys/socket.h>
+#ifndef __linux__
+	#ifdef __FreeBSD__
+		#include <sys/socket.h>
+	#else
+		#include <net/socket.h>
+	#endif
 #endif
 
 #include <cmdline_rdline.h>
@@ -70,7 +74,7 @@ struct cmd_obj_del_show_result {
 
 static void cmd_obj_del_show_parsed(void *parsed_result,
 				    struct cmdline *cl,
-				    __rte_unused void *data)
+				    __attribute__((unused)) void *data)
 {
 	struct cmd_obj_del_show_result *res = parsed_result;
 	char ip_str[INET6_ADDRSTRLEN];
@@ -122,7 +126,7 @@ struct cmd_obj_add_result {
 
 static void cmd_obj_add_parsed(void *parsed_result,
 			       struct cmdline *cl,
-			       __rte_unused void *data)
+			       __attribute__((unused)) void *data)
 {
 	struct cmd_obj_add_result *res = parsed_result;
 	struct object *o;
@@ -141,7 +145,7 @@ static void cmd_obj_add_parsed(void *parsed_result,
 		cmdline_printf(cl, "mem error\n");
 		return;
 	}
-	strlcpy(o->name, res->name, sizeof(o->name));
+	snprintf(o->name, sizeof(o->name), "%s", res->name);
 	o->ip = res->ip;
 	SLIST_INSERT_HEAD(&global_obj_list, o, next);
 
@@ -181,9 +185,9 @@ struct cmd_help_result {
 	cmdline_fixed_string_t help;
 };
 
-static void cmd_help_parsed(__rte_unused void *parsed_result,
+static void cmd_help_parsed(__attribute__((unused)) void *parsed_result,
 			    struct cmdline *cl,
-			    __rte_unused void *data)
+			    __attribute__((unused)) void *data)
 {
 	cmdline_printf(cl,
 		       "Demo example of command line interface in RTE\n\n"

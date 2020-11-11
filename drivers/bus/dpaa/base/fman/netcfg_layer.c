@@ -1,11 +1,11 @@
 /* SPDX-License-Identifier: (BSD-3-Clause OR GPL-2.0)
  *
  * Copyright 2010-2016 Freescale Semiconductor Inc.
- * Copyright 2017-2019 NXP
+ * Copyright 2017 NXP
  *
  */
 #include <inttypes.h>
-#include <dpaa_of.h>
+#include <of.h>
 #include <net/if.h>
 #include <sys/ioctl.h>
 #include <error.h>
@@ -44,8 +44,7 @@ dump_netcfg(struct netcfg_info *cfg_ptr)
 
 		printf("\n+ Fman %d, MAC %d (%s);\n",
 		       __if->fman_idx, __if->mac_idx,
-		       (__if->mac_type == fman_mac_1g) ? "1G" :
-		       (__if->mac_type == fman_mac_2_5g) ? "2.5G" : "10G");
+		       (__if->mac_type == fman_mac_1g) ? "1G" : "10G");
 
 		printf("\tmac_addr: %02x:%02x:%02x:%02x:%02x:%02x\n",
 		       (&__if->mac_addr)->addr_bytes[0],
@@ -115,7 +114,7 @@ netcfg_acquire(void)
 	size = sizeof(*netcfg) +
 		(num_ports * sizeof(struct fm_eth_port_cfg));
 
-	netcfg = rte_calloc(NULL, 1, size, 0);
+	netcfg = calloc(1, size);
 	if (unlikely(netcfg == NULL)) {
 		DPAA_BUS_LOG(ERR, "Unable to allocat mem for netcfg");
 		goto error;
@@ -142,7 +141,7 @@ netcfg_acquire(void)
 
 error:
 	if (netcfg) {
-		rte_free(netcfg);
+		free(netcfg);
 		netcfg = NULL;
 	}
 
@@ -152,7 +151,7 @@ error:
 void
 netcfg_release(struct netcfg_info *cfg_ptr)
 {
-	rte_free(cfg_ptr);
+	free(cfg_ptr);
 	/* Close socket for shared interfaces */
 	if (skfd >= 0) {
 		close(skfd);

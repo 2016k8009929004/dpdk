@@ -1,14 +1,14 @@
 /* SPDX-License-Identifier: BSD-3-Clause
  *
- * Copyright(c) 2019-2020 Xilinx, Inc.
- * Copyright(c) 2012-2019 Solarflare Communications Inc.
+ * Copyright (c) 2012-2018 Solarflare Communications Inc.
+ * All rights reserved.
  */
 
 #include "efx.h"
 #include "efx_impl.h"
 
 
-#if EFX_OPTS_EF10()
+#if EFSYS_OPT_HUNTINGTON || EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2
 
 	__checkReturn	efx_rc_t
 ef10_mac_poll(
@@ -351,7 +351,9 @@ ef10_mac_multicast_list_set(
 	const efx_mac_ops_t *emop = epp->ep_emop;
 	efx_rc_t rc;
 
-	EFSYS_ASSERT(EFX_FAMILY_IS_EF10(enp));
+	EFSYS_ASSERT(enp->en_family == EFX_FAMILY_HUNTINGTON ||
+	    enp->en_family == EFX_FAMILY_MEDFORD ||
+	    enp->en_family == EFX_FAMILY_MEDFORD2);
 
 	if ((rc = emop->emo_reconfigure(enp)) != 0)
 		goto fail1;
@@ -1039,4 +1041,4 @@ fail1:
 
 #endif	/* EFSYS_OPT_MAC_STATS */
 
-#endif	/* EFX_OPTS_EF10() */
+#endif	/* EFSYS_OPT_HUNTINGTON || EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2 */

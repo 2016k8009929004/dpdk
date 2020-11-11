@@ -1,6 +1,35 @@
-/* SPDX-License-Identifier: BSD-3-Clause
- * Copyright(c) 2001-2020 Intel Corporation
- */
+/*******************************************************************************
+
+Copyright (c) 2001-2015, Intel Corporation
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+ 1. Redistributions of source code must retain the above copyright notice,
+    this list of conditions and the following disclaimer.
+
+ 2. Redistributions in binary form must reproduce the above copyright
+    notice, this list of conditions and the following disclaimer in the
+    documentation and/or other materials provided with the distribution.
+
+ 3. Neither the name of the Intel Corporation nor the names of its
+    contributors may be used to endorse or promote products derived from
+    this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+POSSIBILITY OF SUCH DAMAGE.
+
+***************************************************************************/
 
 #ifndef _E1000_DEFINES_H_
 #define _E1000_DEFINES_H_
@@ -128,7 +157,9 @@
 	E1000_RXDEXT_STATERR_CXE |	\
 	E1000_RXDEXT_STATERR_RXE)
 
+#if !defined(EXTERNAL_RELEASE) || defined(E1000E_MQ)
 #define E1000_MRQC_ENABLE_RSS_2Q		0x00000001
+#endif /* !EXTERNAL_RELEASE || E1000E_MQ */
 #define E1000_MRQC_RSS_FIELD_MASK		0xFFFF0000
 #define E1000_MRQC_RSS_FIELD_IPV4_TCP		0x00010000
 #define E1000_MRQC_RSS_FIELD_IPV4		0x00020000
@@ -249,7 +280,6 @@
 #define E1000_CTRL_SWDPIO0	0x00400000 /* SWDPIN 0 Input or output */
 #define E1000_CTRL_SWDPIO2	0x01000000 /* SWDPIN 2 input or output */
 #define E1000_CTRL_SWDPIO3	0x02000000 /* SWDPIN 3 input or output */
-#define E1000_CTRL_DEV_RST	0x20000000 /* Device reset */
 #define E1000_CTRL_RST		0x04000000 /* Global reset */
 #define E1000_CTRL_RFCE		0x08000000 /* Receive Flow Control enable */
 #define E1000_CTRL_TFCE		0x10000000 /* Transmit flow control enable */
@@ -314,7 +344,6 @@
 #define E1000_STATUS_PCIX_SPEED_66	0x00000000 /* PCI-X bus spd 50-66MHz */
 #define E1000_STATUS_PCIX_SPEED_100	0x00004000 /* PCI-X bus spd 66-100MHz */
 #define E1000_STATUS_PCIX_SPEED_133	0x00008000 /* PCI-X bus spd 100-133MHz*/
-#define E1000_STATUS_PCIM_STATE		0x40000000 /* PCIm function state */
 
 #define SPEED_10	10
 #define SPEED_100	100
@@ -414,8 +443,8 @@
 #define E1000_RFCTL_LEF			0x00040000
 
 /* Collision related configuration parameters */
-#define E1000_CT_SHIFT			4
 #define E1000_COLLISION_THRESHOLD	15
+#define E1000_CT_SHIFT			4
 #define E1000_COLLISION_DISTANCE	63
 #define E1000_COLD_SHIFT		12
 
@@ -770,17 +799,6 @@
 #define E1000_TIMINCA_INCPERIOD_SHIFT	24
 #define E1000_TIMINCA_INCVALUE_MASK	0x00FFFFFF
 
-/* ETQF register bit definitions */
-#define E1000_ETQF_1588			(1 << 30)
-#define E1000_FTQF_VF_BP		0x00008000
-#define E1000_FTQF_1588_TIME_STAMP	0x08000000
-#define E1000_FTQF_MASK			0xF0000000
-#define E1000_FTQF_MASK_PROTO_BP	0x10000000
-/* Immediate Interrupt Rx (A.K.A. Low Latency Interrupt) */
-#define E1000_IMIREXT_CTRL_BP	0x00080000  /* Bypass check of ctrl bits */
-#define E1000_IMIREXT_SIZE_BP	0x00001000  /* Packet size bypass */
-
-#define E1000_RXDADV_STAT_TSIP		0x08000 /* timestamp in packet */
 #define E1000_TSICR_TXTS		0x00000002
 #define E1000_TSIM_TXTS			0x00000002
 /* TUPLE Filtering Configuration */
@@ -1219,7 +1237,9 @@
 #define PCIE_LINK_SPEED_5000		0x02
 #define PCIE_DEVICE_CONTROL2_16ms	0x0005
 
+#ifndef ETH_ADDR_LEN
 #define ETH_ADDR_LEN			6
+#endif
 
 #define PHY_REVISION_MASK		0xFFFFFFF0
 #define MAX_PHY_REG_ADDRESS		0x1F  /* 5 bit address bus (0-0x1F) */
@@ -1388,7 +1408,6 @@
 #define E1000_MDIC_ERROR	0x40000000
 #define E1000_MDIC_DEST		0x80000000
 
-#define E1000_VFTA_BLOCK_SIZE	8
 /* SerDes Control */
 #define E1000_GEN_CTL_READY		0x80000000
 #define E1000_GEN_CTL_ADDRESS_SHIFT	8
@@ -1486,7 +1505,10 @@
 /* Lan ID bit field offset in status register */
 #define E1000_STATUS_LAN_ID_OFFSET	2
 #define E1000_VFTA_ENTRIES		128
-
+#ifndef E1000_UNUSEDARG
 #define E1000_UNUSEDARG
+#endif /* E1000_UNUSEDARG */
+#ifndef ERROR_REPORT
 #define ERROR_REPORT(fmt)	do { } while (0)
+#endif /* ERROR_REPORT */
 #endif /* _E1000_DEFINES_H_ */

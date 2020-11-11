@@ -8,7 +8,9 @@
 #include <rte_malloc.h>
 #include <rte_cryptodev_pmd.h>
 
-#include "armv8_pmd_private.h"
+#include "armv8_crypto_defs.h"
+
+#include "rte_armv8_pmd_private.h"
 
 static const struct rte_cryptodev_capabilities
 	armv8_crypto_pmd_capabilities[] = {
@@ -218,7 +220,7 @@ armv8_crypto_pmd_qp_create_processed_ops_ring(struct armv8_crypto_qp *qp,
 static int
 armv8_crypto_pmd_qp_setup(struct rte_cryptodev *dev, uint16_t qp_id,
 		const struct rte_cryptodev_qp_conf *qp_conf,
-		int socket_id)
+		int socket_id, struct rte_mempool *session_pool)
 {
 	struct armv8_crypto_qp *qp = NULL;
 
@@ -243,8 +245,7 @@ armv8_crypto_pmd_qp_setup(struct rte_cryptodev *dev, uint16_t qp_id,
 	if (qp->processed_ops == NULL)
 		goto qp_setup_cleanup;
 
-	qp->sess_mp = qp_conf->mp_session;
-	qp->sess_mp_priv = qp_conf->mp_session_private;
+	qp->sess_mp = session_pool;
 
 	memset(&qp->stats, 0, sizeof(qp->stats));
 
@@ -255,6 +256,13 @@ qp_setup_cleanup:
 		rte_free(qp);
 
 	return -1;
+}
+
+/** Return the number of allocated queue pairs */
+static uint32_t
+armv8_crypto_pmd_qp_count(struct rte_cryptodev *dev)
+{
+	return dev->data->nb_queue_pairs;
 }
 
 /** Returns the size of the session structure */
@@ -330,6 +338,7 @@ struct rte_cryptodev_ops armv8_crypto_pmd_ops = {
 
 		.queue_pair_setup	= armv8_crypto_pmd_qp_setup,
 		.queue_pair_release	= armv8_crypto_pmd_qp_release,
+		.queue_pair_count	= armv8_crypto_pmd_qp_count,
 
 		.sym_session_get_size	= armv8_crypto_pmd_sym_session_get_size,
 		.sym_session_configure	= armv8_crypto_pmd_sym_session_configure,

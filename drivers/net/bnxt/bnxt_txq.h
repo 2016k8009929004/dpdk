@@ -29,13 +29,11 @@ struct bnxt_tx_queue {
 	struct bnxt		*bp;
 	int			index;
 	int			tx_wake_thresh;
-	uint32_t		vfr_tx_cfa_action;
 	struct bnxt_tx_ring_info	*tx_ring;
 
 	unsigned int		cp_nr_rings;
 	struct bnxt_cp_ring_info	*cp_ring;
 	const struct rte_memzone *mz;
-	struct rte_mbuf **free;
 };
 
 void bnxt_free_txq_stats(struct bnxt_tx_queue *txq);

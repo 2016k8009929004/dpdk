@@ -7,12 +7,12 @@ Design
 Environment or Architecture-specific Sources
 --------------------------------------------
 
-In DPDK and DPDK applications, some code is specific to an architecture (i686, x86_64) or to an executive environment (freebsd or linux) and so on.
+In DPDK and DPDK applications, some code is specific to an architecture (i686, x86_64) or to an executive environment (bsdapp or linuxapp) and so on.
 As far as is possible, all such instances of architecture or env-specific code should be provided via standard APIs in the EAL.
 
 By convention, a file is common if it is not located in a directory indicating that it is specific.
 For instance, a file located in a subdir of "x86_64" directory is specific to this architecture.
-A file located in a subdir of "linux" is specific to this execution environment.
+A file located in a subdir of "linuxapp" is specific to this execution environment.
 
 .. note::
 
@@ -55,23 +55,7 @@ Per Execution Environment Sources
 The following config options can be used:
 
 * ``CONFIG_RTE_EXEC_ENV`` is a string that contains the name of the executive environment.
-* ``CONFIG_RTE_EXEC_ENV_FREEBSD`` or ``CONFIG_RTE_EXEC_ENV_LINUX`` are defined only if we are building for this execution environment.
-
-Mbuf features
--------------
-
-The ``rte_mbuf`` structure must be kept small (128 bytes).
-
-In order to add new features without wasting buffer space for unused features,
-some fields and flags can be registered dynamically in a shared area.
-The "dynamic" mbuf area is the default choice for the new features.
-
-The "dynamic" area is eating the remaining space in mbuf,
-and some existing "static" fields may need to become "dynamic".
-
-Adding a new static field or flag must be an exception matching many criteria
-like (non exhaustive): wide usage, performance, size.
-
+* ``CONFIG_RTE_EXEC_ENV_BSDAPP`` or ``CONFIG_RTE_EXEC_ENV_LINUXAPP`` are defined only if we are building for this execution environment.
 
 Library Statistics
 ------------------
@@ -97,7 +81,7 @@ are collected for any instance of any object type provided by the library:
 
 .. code-block:: console
 
-   # DPDK file config/common_linux, config/common_freebsd, etc.
+   # DPDK file config/common_linuxapp, config/common_bsdapp, etc.
    CONFIG_RTE_<LIBRARY_NAME>_STATS_COLLECT=y/n
 
 The default value for this DPDK configuration file variable (either "yes" or

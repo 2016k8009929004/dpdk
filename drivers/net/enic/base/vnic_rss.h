@@ -9,19 +9,24 @@
 /* RSS key array */
 union vnic_rss_key {
 	struct {
-		uint8_t b[10];
-		uint8_t b_pad[6];
+		u8 b[10];
+		u8 b_pad[6];
 	} key[4];
-	uint64_t raw[8];
+	u64 raw[8];
 };
 
 /* RSS cpu array */
 union vnic_rss_cpu {
 	struct {
-		uint8_t b[4];
-		uint8_t b_pad[4];
+		u8 b[4];
+		u8 b_pad[4];
 	} cpu[32];
-	uint64_t raw[32];
+	u64 raw[32];
 };
+
+void vnic_set_rss_key(union vnic_rss_key *rss_key, u8 *key);
+void vnic_set_rss_cpu(union vnic_rss_cpu *rss_cpu, u8 *cpu);
+void vnic_get_rss_key(union vnic_rss_key *rss_key, u8 *key);
+void vnic_get_rss_cpu(union vnic_rss_cpu *rss_cpu, u8 *cpu);
 
 #endif /* _VNIC_RSS_H_ */

@@ -54,7 +54,7 @@ A check is also performed at initialization time to ensure that the micro archit
 Then, the main() function is called. The core initialization and launch is done in rte_eal_init() (see the API documentation).
 It consist of calls to the pthread library (more specifically, pthread_self(), pthread_create(), and pthread_setaffinity_np()).
 
-.. _figure_linux_launch:
+.. _figure_linuxapp_launch:
 
 .. figure:: img/linuxapp_launch.*
 
@@ -79,7 +79,7 @@ API documentation for details.
 Multi-process Support
 ~~~~~~~~~~~~~~~~~~~~~
 
-The Linux EAL allows a multi-process as well as a multi-threaded (pthread) deployment model.
+The Linuxapp EAL allows a multi-process as well as a multi-threaded (pthread) deployment model.
 See chapter
 :ref:`Multi-process Support <Multi-process_Support>` for more details.
 
@@ -168,20 +168,6 @@ not allow acquiring or releasing hugepages from the system at runtime.
 If neither ``-m`` nor ``--socket-mem`` were specified, the entire available
 hugepage memory will be preallocated.
 
-+ Hugepage allocation matching
-
-This behavior is enabled by specifying the ``--match-allocations`` command-line
-switch to the EAL. This switch is Linux-only and not supported with
-``--legacy-mem`` nor ``--no-huge``.
-
-Some applications using memory event callbacks may require that hugepages be
-freed exactly as they were allocated. These applications may also require
-that any allocation from the malloc heap not span across allocations
-associated with two different memory event callbacks. Hugepage allocation
-matching can be used by these types of applications to satisfy both of these
-requirements. This can result in some increased memory usage which is
-very dependent on the memory allocation patterns of the application.
-
 + 32-bit support
 
 Additional restrictions are present when running in 32-bit mode. In dynamic
@@ -222,47 +208,20 @@ Normally, these options do not need to be changed.
     can later be mapped into that preallocated VA space (if dynamic memory mode
     is enabled), and can optionally be mapped into it at startup.
 
-+ Segment file descriptors
-
-On Linux, in most cases, EAL will store segment file descriptors in EAL. This
-can become a problem when using smaller page sizes due to underlying limitations
-of ``glibc`` library. For example, Linux API calls such as ``select()`` may not
-work correctly because ``glibc`` does not support more than certain number of
-file descriptors.
-
-There are two possible solutions for this problem. The recommended solution is
-to use ``--single-file-segments`` mode, as that mode will not use a file
-descriptor per each page, and it will keep compatibility with Virtio with
-vhost-user backend. This option is not available when using ``--legacy-mem``
-mode.
-
-Another option is to use bigger page sizes. Since fewer pages are required to
-cover the same memory area, fewer file descriptors will be stored internally
-by EAL.
-
 Support for Externally Allocated Memory
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-It is possible to use externally allocated memory in DPDK. There are two ways in
-which using externally allocated memory can work: the malloc heap API's, and
-manual memory management.
+It is possible to use externally allocated memory in DPDK, using a set of malloc
+heap API's. Support for externally allocated memory is implemented through
+overloading the socket ID - externally allocated heaps will have socket ID's
+that would be considered invalid under normal circumstances. Requesting an
+allocation to take place from a specified externally allocated memory is a
+matter of supplying the correct socket ID to DPDK allocator, either directly
+(e.g. through a call to ``rte_malloc``) or indirectly (through data
+structure-specific allocation API's such as ``rte_ring_create``).
 
-+ Using heap API's for externally allocated memory
-
-Using a set of malloc heap API's is the recommended way to use externally
-allocated memory in DPDK. In this way, support for externally allocated memory
-is implemented through overloading the socket ID - externally allocated heaps
-will have socket ID's that would be considered invalid under normal
-circumstances. Requesting an allocation to take place from a specified
-externally allocated memory is a matter of supplying the correct socket ID to
-DPDK allocator, either directly (e.g. through a call to ``rte_malloc``) or
-indirectly (through data structure-specific allocation API's such as
-``rte_ring_create``). Using these API's also ensures that mapping of externally
-allocated memory for DMA is also performed on any memory segment that is added
-to a DPDK malloc heap.
-
-Since there is no way DPDK can verify whether memory is available or valid, this
-responsibility falls on the shoulders of the user. All multiprocess
+Since there is no way DPDK can verify whether memory is available or valid,
+this responsibility falls on the shoulders of the user. All multiprocess
 synchronization is also user's responsibility, as well as ensuring  that all
 calls to add/attach/detach/remove memory are done in the correct order. It is
 not required to attach to a memory area in all processes - only attach to memory
@@ -285,40 +244,6 @@ The expected workflow is as follows:
 
 For more information, please refer to ``rte_malloc`` API documentation,
 specifically the ``rte_malloc_heap_*`` family of function calls.
-
-+ Using externally allocated memory without DPDK API's
-
-While using heap API's is the recommended method of using externally allocated
-memory in DPDK, there are certain use cases where the overhead of DPDK heap API
-is undesirable - for example, when manual memory management is performed on an
-externally allocated area. To support use cases where externally allocated
-memory will not be used as part of normal DPDK workflow, there is also another
-set of API's under the ``rte_extmem_*`` namespace.
-
-These API's are (as their name implies) intended to allow registering or
-unregistering externally allocated memory to/from DPDK's internal page table, to
-allow API's like ``rte_mem_virt2memseg`` etc. to work with externally allocated
-memory. Memory added this way will not be available for any regular DPDK
-allocators; DPDK will leave this memory for the user application to manage.
-
-The expected workflow is as follows:
-
-* Get a pointer to memory area
-* Register memory within DPDK
-    - If IOVA table is not specified, IOVA addresses will be assumed to be
-      unavailable
-    - Other processes must attach to the memory area before they can use it
-* Perform DMA mapping with ``rte_dev_dma_map`` if needed
-* Use the memory area in your application
-* If memory area is no longer needed, it can be unregistered
-    - If the area was mapped for DMA, unmapping must be performed before
-      unregistering memory
-    - Other processes must detach from the memory area before it can be
-      unregistered
-
-Since these externally allocated memory areas will not be managed by DPDK, it is
-therefore up to the user application to decide how to use them and what to do
-with them once they're registered.
 
 Per-lcore and Shared Variables
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -372,10 +297,10 @@ To ease the idle polling with tiny throughput, it's useful to pause the polling 
 The RX interrupt is the first choice to be such kind of wake-up event, but probably won't be the only one.
 
 EAL provides the event APIs for this event-driven thread mode.
-Taking Linux as an example, the implementation relies on epoll. Each thread can monitor an epoll instance
+Taking linuxapp as an example, the implementation relies on epoll. Each thread can monitor an epoll instance
 in which all the wake-up events' file descriptors are added. The event file descriptors are created and mapped to
 the interrupt vectors according to the UIO/VFIO spec.
-From FreeBSD's perspective, kqueue is the alternative way, but not implemented yet.
+From bsdapp's perspective, kqueue is the alternative way, but not implemented yet.
 
 EAL initializes the mapping between event file descriptors and interrupt vectors, while each device initializes the mapping
 between interrupt vectors and queues. In this way, EAL actually is unaware of the interrupt cause on the specific vector.
@@ -418,65 +343,6 @@ Misc Functions
 ~~~~~~~~~~~~~~
 
 Locks and atomic operations are per-architecture (i686 and x86_64).
-
-IOVA Mode Detection
-~~~~~~~~~~~~~~~~~~~
-
-IOVA Mode is selected by considering what the current usable Devices on the
-system require and/or support.
-
-On FreeBSD, RTE_IOVA_PA is always the default. On Linux, the IOVA mode is
-detected based on a 2-step heuristic detailed below.
-
-For the first step, EAL asks each bus its requirement in terms of IOVA mode
-and decides on a preferred IOVA mode.
-
-- if all buses report RTE_IOVA_PA, then the preferred IOVA mode is RTE_IOVA_PA,
-- if all buses report RTE_IOVA_VA, then the preferred IOVA mode is RTE_IOVA_VA,
-- if all buses report RTE_IOVA_DC, no bus expressed a preferrence, then the
-  preferred mode is RTE_IOVA_DC,
-- if the buses disagree (at least one wants RTE_IOVA_PA and at least one wants
-  RTE_IOVA_VA), then the preferred IOVA mode is RTE_IOVA_DC (see below with the
-  check on Physical Addresses availability),
-
-If the buses have expressed no preference on which IOVA mode to pick, then a
-default is selected using the following logic:
-
-- if physical addresses are not available, RTE_IOVA_VA mode is used
-- if /sys/kernel/iommu_groups is not empty, RTE_IOVA_VA mode is used
-- otherwise, RTE_IOVA_PA mode is used
-
-In the case when the buses had disagreed on their preferred IOVA mode, part of
-the buses won't work because of this decision.
-
-The second step checks if the preferred mode complies with the Physical
-Addresses availability since those are only available to root user in recent
-kernels. Namely, if the preferred mode is RTE_IOVA_PA but there is no access to
-Physical Addresses, then EAL init fails early, since later probing of the
-devices would fail anyway.
-
-.. note::
-
-    The RTE_IOVA_VA mode is preferred as the default in most cases for the
-    following reasons:
-
-    - All drivers are expected to work in RTE_IOVA_VA mode, irrespective of
-      physical address availability.
-    - By default, the mempool, first asks for IOVA-contiguous memory using
-      ``RTE_MEMZONE_IOVA_CONTIG``. This is slow in RTE_IOVA_PA mode and it may
-      affect the application boot time.
-    - It is easy to enable large amount of IOVA-contiguous memory use-cases
-      with IOVA in VA mode.
-
-    It is expected that all PCI drivers work in both RTE_IOVA_PA and
-    RTE_IOVA_VA modes.
-
-    If a PCI driver does not support RTE_IOVA_PA mode, the
-    ``RTE_PCI_DRV_NEED_IOVA_AS_VA`` flag is used to dictate that this PCI
-    driver can only work in RTE_IOVA_VA mode.
-
-    When the KNI kernel module is detected, RTE_IOVA_PA mode is preferred as a
-    performance penalty is expected in RTE_IOVA_VA mode.
 
 IOVA Mode Configuration
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -564,13 +430,9 @@ It's also compatible with the pattern of corelist('-l') option.
 non-EAL pthread support
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-It is possible to use the DPDK execution context with any user pthread (aka. non-EAL pthreads).
-There are two kinds of non-EAL pthreads:
-
-- a registered non-EAL pthread with a valid *_lcore_id* that was successfully assigned by calling ``rte_thread_register()``,
-- a non registered non-EAL pthread with a LCORE_ID_ANY,
-
-For non registered non-EAL pthread (with a LCORE_ID_ANY *_lcore_id*), some libraries will use an alternative unique ID (e.g. TID), some will not be impacted at all, and some will work but with limitations (e.g. timer and mempool libraries).
+It is possible to use the DPDK execution context with any user pthread (aka. Non-EAL pthreads).
+In a non-EAL pthread, the *_lcore_id* is always LCORE_ID_ANY which identifies that it is not an EAL thread with a valid, unique, *_lcore_id*.
+Some libraries will use an alternative unique ID (e.g. TID), some will not be impacted at all, and some will work but with limitations (e.g. timer and mempool libraries).
 
 All these impacts are mentioned in :ref:`known_issue_label` section.
 
@@ -617,9 +479,9 @@ Known Issues
 + rte_mempool
 
   The rte_mempool uses a per-lcore cache inside the mempool.
-  For unregistered non-EAL pthreads, ``rte_lcore_id()`` will not return a valid number.
-  So for now, when rte_mempool is used with unregistered non-EAL pthreads, the put/get operations will bypass the default mempool cache and there is a performance penalty because of this bypass.
-  Only user-owned external caches can be used in an unregistered non-EAL context in conjunction with ``rte_mempool_generic_put()`` and ``rte_mempool_generic_get()`` that accept an explicit cache parameter.
+  For non-EAL pthreads, ``rte_lcore_id()`` will not return a valid number.
+  So for now, when rte_mempool is used with non-EAL pthreads, the put/get operations will bypass the default mempool cache and there is a performance penalty because of this bypass.
+  Only user-owned external caches can be used in a non-EAL context in conjunction with ``rte_mempool_generic_put()`` and ``rte_mempool_generic_get()`` that accept an explicit cache parameter.
 
 + rte_ring
 
@@ -652,27 +514,17 @@ Known Issues
 
   5. It MUST not be used by multi-producer/consumer pthreads, whose scheduling policies are SCHED_FIFO or SCHED_RR.
 
-  Alternatively, applications can use the lock-free stack mempool handler. When
-  considering this handler, note that:
-
-  - It is currently limited to the aarch64 and x86_64 platforms, because it uses
-    an instruction (16-byte compare-and-swap) that is not yet available on other
-    platforms.
-  - It has worse average-case performance than the non-preemptive rte_ring, but
-    software caching (e.g. the mempool cache) can mitigate this by reducing the
-    number of stack accesses.
-
 + rte_timer
 
-  Running  ``rte_timer_manage()`` on an unregistered non-EAL pthread is not allowed. However, resetting/stopping the timer from a non-EAL pthread is allowed.
+  Running  ``rte_timer_manage()`` on a non-EAL pthread is not allowed. However, resetting/stopping the timer from a non-EAL pthread is allowed.
 
 + rte_log
 
-  In unregistered non-EAL pthreads, there is no per thread loglevel and logtype, global loglevels are used.
+  In non-EAL pthreads, there is no per thread loglevel and logtype, global loglevels are used.
 
 + misc
 
-  The debug statistics of rte_ring, rte_mempool and rte_timer are not supported in an unregistered non-EAL pthread.
+  The debug statistics of rte_ring, rte_mempool and rte_timer are not supported in a non-EAL pthread.
 
 cgroup control
 ~~~~~~~~~~~~~~

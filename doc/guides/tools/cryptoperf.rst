@@ -192,8 +192,6 @@ The following are the application command-line options:
            cipher-then-auth
            auth-then-cipher
            aead
-           pdcp
-           docsis
 
         For GCM/CCM algorithms you should use aead flag.
 
@@ -333,23 +331,6 @@ The following are the application command-line options:
 * ``--csv-friendly``
 
         Enable test result output CSV friendly rather than human friendly.
-
-* ``--pdcp-sn-sz <n>``
-
-        Set PDCP sequence number size(n) in bits. Valid values of n will
-        be 5/7/12/15/18.
-
-* ``--pdcp-domain <control/user>``
-
-        Set PDCP domain to specify Control/user plane.
-
-* ``--docsis-hdr-sz <n>``
-
-        Set DOCSIS header size(n) in bytes.
-
-* ``--pdcp-ses-hfn-en``
-
-        Enable fixed session based HFN instead of per packet HFN.
 
 Test Vector File
 ~~~~~~~~~~~~~~~~

@@ -1,12 +1,10 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Copyright 2018 NXP
 
-if not is_linux
+if host_machine.system() != 'linux'
 	build = false
-	reason = 'only supported on linux'
 endif
 
-deps += ['common_dpaax']
 sources = files('enetc_ethdev.c',
 		'enetc_rxtx.c')
 

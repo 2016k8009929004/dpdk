@@ -8,7 +8,6 @@
 #ifndef HW_ATL_UTILS_H
 #define HW_ATL_UTILS_H
 
-#define BIT(x)  (1UL << (x))
 #define HW_ATL_FLUSH() { (void)aq_hw_read_reg(self, 0x10); }
 
 /* Hardware tx descriptor */
@@ -27,10 +26,10 @@ struct hw_atl_txd_s {
 			u32 ct_idx:1;
 			u32 ct_en:1;
 			u32 pay_len:18;
-		} __rte_packed;
+		} __attribute__((__packed__));
 		u64 flags;
 	};
-} __rte_packed;
+} __attribute__((__packed__));
 
 /* Hardware tx context descriptor */
 union hw_atl_txc_s {
@@ -51,8 +50,8 @@ union hw_atl_txc_s {
 		u32 l3_len:9;
 		u32 l4_len:8;
 		u32 mss_len:16;
-	} __rte_packed;
-} __rte_packed;
+	} __attribute__((__packed__));
+} __attribute__((__packed__));
 
 enum aq_tx_desc_type {
 	tx_desc_type_desc = 1,
@@ -73,7 +72,7 @@ enum aq_tx_desc_cmd {
 struct hw_atl_rxd_s {
 	u64 buf_addr;
 	u64 hdr_addr;
-} __rte_packed;
+} __attribute__((__packed__));
 
 /* Hardware rx descriptor writeback */
 struct hw_atl_rxd_wb_s {
@@ -89,7 +88,7 @@ struct hw_atl_rxd_wb_s {
 	u16 pkt_len;
 	u16 next_desc_ptr;
 	u16 vlan;
-} __rte_packed;
+} __attribute__((__packed__));
 
 struct hw_atl_stats_s {
 	u32 uprc;
@@ -107,7 +106,7 @@ struct hw_atl_stats_s {
 	u32 ubrc;
 	u32 ubtc;
 	u32 dpc;
-} __rte_packed;
+} __attribute__((__packed__));
 
 union ip_addr {
 	struct {
@@ -117,7 +116,7 @@ union ip_addr {
 		u8 padding[12];
 		u8 addr[4];
 	} v4;
-} __rte_packed;
+} __attribute__((__packed__));
 
 struct hw_aq_atl_utils_fw_rpc {
 	u32 msg_id;
@@ -226,13 +225,13 @@ struct hw_aq_atl_utils_fw_rpc {
 		} msg_del_id;
 
 	};
-} __rte_packed;
+} __attribute__((__packed__));
 
 struct hw_aq_atl_utils_mbox_header {
 	u32 version;
 	u32 transaction_id;
 	u32 error;
-} __rte_packed;
+} __attribute__((__packed__));
 
 struct hw_aq_info {
 	u8 reserved[6];
@@ -244,13 +243,13 @@ struct hw_aq_info {
 	u8 reserved2[32];
 	u32 caps_lo;
 	u32 caps_hi;
-} __rte_packed;
+} __attribute__((__packed__));
 
 struct hw_aq_atl_utils_mbox {
 	struct hw_aq_atl_utils_mbox_header header;
 	struct hw_atl_stats_s stats;
 	struct hw_aq_info info;
-} __rte_packed;
+} __attribute__((__packed__));
 
 /* fw2x */
 typedef u16	in_port_t;
@@ -261,7 +260,7 @@ typedef u32	fw_offset_t;
 
 struct ip6_addr {
 	u32 addr[4];
-} __rte_packed;
+} __attribute__((__packed__));
 
 struct offload_ka_v4 {
 	u32 timeout;
@@ -273,7 +272,7 @@ struct offload_ka_v4 {
 	u32 ack_num;
 	ip4_addr_t local_ip;
 	ip4_addr_t remote_ip;
-} __rte_packed;
+} __attribute__((__packed__));
 
 struct offload_ka_v6 {
 	u32 timeout;
@@ -285,7 +284,7 @@ struct offload_ka_v6 {
 	u32 ack_num;
 	struct ip6_addr local_ip;
 	struct ip6_addr remote_ip;
-} __rte_packed;
+} __attribute__((__packed__));
 
 struct offload_ip_info {
 	u8 v4_local_addr_count;
@@ -296,14 +295,14 @@ struct offload_ip_info {
 	fw_offset_t v4_prefix;
 	fw_offset_t v6_addr;
 	fw_offset_t v6_prefix;
-} __rte_packed;
+} __attribute__((__packed__));
 
 struct offload_port_info {
 	u16 udp_port_count;
 	u16 tcp_port_count;
 	fw_offset_t udp_port;
 	fw_offset_t tcp_port;
-} __rte_packed;
+} __attribute__((__packed__));
 
 struct offload_ka_info {
 	u16 v4_ka_count;
@@ -312,14 +311,14 @@ struct offload_ka_info {
 	u32 retry_interval;
 	fw_offset_t v4_ka;
 	fw_offset_t v6_ka;
-} __rte_packed;
+} __attribute__((__packed__));
 
 struct offload_rr_info {
 	u32 rr_count;
 	u32 rr_buf_len;
 	fw_offset_t rr_id_x;
 	fw_offset_t rr_buf;
-} __rte_packed;
+} __attribute__((__packed__));
 
 struct offload_info {
 	u32 version;		// current version is 0x00000000
@@ -335,162 +334,14 @@ struct offload_info {
 	struct offload_ka_info kas;
 	struct offload_rr_info rrs;
 	u8 buf[0];
-} __rte_packed;
+} __attribute__((__packed__));
 
 struct smbus_request {
 	u32 msg_id; /* not used */
 	u32 device_id;
 	u32 address;
 	u32 length;
-} __rte_packed;
-
-enum macsec_msg_type {
-	macsec_cfg_msg = 0,
-	macsec_add_rx_sc_msg,
-	macsec_add_tx_sc_msg,
-	macsec_add_rx_sa_msg,
-	macsec_add_tx_sa_msg,
-	macsec_get_stats_msg,
-};
-
-struct macsec_cfg {
-	uint32_t enabled;
-	uint32_t egress_threshold;
-	uint32_t ingress_threshold;
-	uint32_t interrupts_enabled;
-} __rte_packed;
-
-struct add_rx_sc {
-	uint32_t index;
-	uint32_t pi; /* Port identifier */
-	uint32_t sci[2]; /* Secure Channel identifier */
-	uint32_t sci_mask; /* 1: enable comparison of SCI, 0: don't care */
-	uint32_t tci;
-	uint32_t tci_mask;
-	uint32_t mac_sa[2];
-	uint32_t sa_mask; /* 0: ignore mac_sa */
-	uint32_t mac_da[2];
-	uint32_t da_mask; /* 0: ignore mac_da */
-	uint32_t validate_frames; /* 0: strict, 1:check, 2:disabled */
-	uint32_t replay_protect; /* 1: enabled, 0:disabled */
-	uint32_t anti_replay_window; /* default 0 */
-	/* 1: auto_rollover enabled (when SA next_pn is saturated */
-	uint32_t an_rol;
-} __rte_packed;
-
-struct add_tx_sc {
-	uint32_t index;
-	uint32_t pi; /* Port identifier */
-	uint32_t sci[2]; /* Secure Channel identifier */
-	uint32_t sci_mask; /* 1: enable comparison of SCI, 0: don't care */
-	uint32_t tci; /* TCI value, used if packet is not explicitly tagged */
-	uint32_t tci_mask;
-	uint32_t mac_sa[2];
-	uint32_t sa_mask; /* 0: ignore mac_sa */
-	uint32_t mac_da[2];
-	uint32_t da_mask; /* 0: ignore mac_da */
-	uint32_t protect;
-	uint32_t curr_an; /* SA index which currently used */
-} __rte_packed;
-
-struct add_rx_sa {
-	uint32_t index;
-	uint32_t next_pn;
-	uint32_t key[4]; /* 128 bit key */
-} __rte_packed;
-
-struct add_tx_sa {
-	uint32_t index;
-	uint32_t next_pn;
-	uint32_t key[4]; /* 128 bit key */
-} __rte_packed;
-
-struct get_stats {
-	uint32_t version_only;
-	uint32_t ingress_sa_index;
-	uint32_t egress_sa_index;
-	uint32_t egress_sc_index;
-} __rte_packed;
-
-struct macsec_stats {
-	uint32_t api_version;
-	/* Ingress Common Counters */
-	uint64_t in_ctl_pkts;
-	uint64_t in_tagged_miss_pkts;
-	uint64_t in_untagged_miss_pkts;
-	uint64_t in_notag_pkts;
-	uint64_t in_untagged_pkts;
-	uint64_t in_bad_tag_pkts;
-	uint64_t in_no_sci_pkts;
-	uint64_t in_unknown_sci_pkts;
-	uint64_t in_ctrl_prt_pass_pkts;
-	uint64_t in_unctrl_prt_pass_pkts;
-	uint64_t in_ctrl_prt_fail_pkts;
-	uint64_t in_unctrl_prt_fail_pkts;
-	uint64_t in_too_long_pkts;
-	uint64_t in_igpoc_ctl_pkts;
-	uint64_t in_ecc_error_pkts;
-	uint64_t in_unctrl_hit_drop_redir;
-
-	/* Egress Common Counters */
-	uint64_t out_ctl_pkts;
-	uint64_t out_unknown_sa_pkts;
-	uint64_t out_untagged_pkts;
-	uint64_t out_too_long;
-	uint64_t out_ecc_error_pkts;
-	uint64_t out_unctrl_hit_drop_redir;
-
-	/* Ingress SA Counters */
-	uint64_t in_untagged_hit_pkts;
-	uint64_t in_ctrl_hit_drop_redir_pkts;
-	uint64_t in_not_using_sa;
-	uint64_t in_unused_sa;
-	uint64_t in_not_valid_pkts;
-	uint64_t in_invalid_pkts;
-	uint64_t in_ok_pkts;
-	uint64_t in_late_pkts;
-	uint64_t in_delayed_pkts;
-	uint64_t in_unchecked_pkts;
-	uint64_t in_validated_octets;
-	uint64_t in_decrypted_octets;
-
-	/* Egress SA Counters */
-	uint64_t out_sa_hit_drop_redirect;
-	uint64_t out_sa_protected2_pkts;
-	uint64_t out_sa_protected_pkts;
-	uint64_t out_sa_encrypted_pkts;
-
-	/* Egress SC Counters */
-	uint64_t out_sc_protected_pkts;
-	uint64_t out_sc_encrypted_pkts;
-	uint64_t out_sc_protected_octets;
-	uint64_t out_sc_encrypted_octets;
-
-	/* SA Counters expiration info */
-	uint32_t egress_threshold_expired;
-	uint32_t ingress_threshold_expired;
-	uint32_t egress_expired;
-	uint32_t ingress_expired;
-} __rte_packed;
-
-struct macsec_msg_fw_request {
-	uint32_t offset; /* not used */
-	uint32_t msg_type;
-
-	union {
-		struct macsec_cfg cfg;
-		struct add_rx_sc rxsc;
-		struct add_tx_sc txsc;
-		struct add_rx_sa rxsa;
-		struct add_tx_sa txsa;
-		struct get_stats stats;
-	};
-} __rte_packed;
-
-struct macsec_msg_fw_response {
-	uint32_t result;
-	struct macsec_stats stats;
-} __rte_packed;
+} __attribute__((__packed__));
 
 #define HAL_ATLANTIC_UTILS_CHIP_MIPS         0x00000001U
 #define HAL_ATLANTIC_UTILS_CHIP_TPO2         0x00000002U
@@ -533,6 +384,14 @@ enum hal_atl_utils_fw_state_e {
 
 #define SMBUS_DEVICE_ID 0x50
 
+enum hw_atl_fw2x_rate {
+	FW2X_RATE_100M    = 0x20,
+	FW2X_RATE_1G      = 0x100,
+	FW2X_RATE_2G5     = 0x200,
+	FW2X_RATE_5G      = 0x400,
+	FW2X_RATE_10G     = 0x800,
+};
+
 enum hw_atl_fw2x_caps_lo {
 	CAPS_LO_10BASET_HD = 0x00,
 	CAPS_LO_10BASET_FD,
@@ -549,7 +408,6 @@ enum hw_atl_fw2x_caps_lo {
 	CAPS_LO_AUTONEG,
 	CAPS_LO_SMBUS_READ,
 	CAPS_LO_SMBUS_WRITE,
-	CAPS_LO_MACSEC
 };
 
 enum hw_atl_fw2x_caps_hi {
@@ -585,14 +443,6 @@ enum hw_atl_fw2x_caps_hi {
 	CAPS_HI_WOL_TIMER,
 	CAPS_HI_STATISTICS,
 	CAPS_HI_TRANSACTION_ID,
-};
-
-enum hw_atl_fw2x_rate {
-	FW2X_RATE_100M    = BIT(CAPS_LO_100BASETX_FD),
-	FW2X_RATE_1G      = BIT(CAPS_LO_1000BASET_FD),
-	FW2X_RATE_2G5     = BIT(CAPS_LO_2P5GBASET_FD),
-	FW2X_RATE_5G      = BIT(CAPS_LO_5GBASET_FD),
-	FW2X_RATE_10G     = BIT(CAPS_LO_10GBASET_FD),
 };
 
 struct aq_hw_s;

@@ -1,8 +1,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Copyright(c) 2018 Cavium, Inc
-if not is_linux
+if host_machine.system() != 'linux'
 	build = false
-	reason = 'only supported on linux'
 endif
 
 deps += ['bus_pci']
@@ -16,3 +15,4 @@ sources = files('otx_cryptodev.c',
 		'otx_cryptodev_ops.c')
 
 includes += include_directories('../../common/cpt')
+cflags += '-DCPT_MODEL=CRYPTO_OCTEONTX'

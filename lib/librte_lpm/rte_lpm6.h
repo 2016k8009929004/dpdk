@@ -94,8 +94,14 @@ rte_lpm6_free(struct rte_lpm6 *lpm);
  *   0 on success, negative value otherwise
  */
 int
-rte_lpm6_add(struct rte_lpm6 *lpm, const uint8_t *ip, uint8_t depth,
-	     uint32_t next_hop);
+rte_lpm6_add(struct rte_lpm6 *lpm, uint8_t *ip, uint8_t depth,
+		uint32_t next_hop);
+int
+rte_lpm6_add_v20(struct rte_lpm6 *lpm, uint8_t *ip, uint8_t depth,
+		uint8_t next_hop);
+int
+rte_lpm6_add_v1705(struct rte_lpm6 *lpm, uint8_t *ip, uint8_t depth,
+		uint32_t next_hop);
 
 /**
  * Check if a rule is present in the LPM table,
@@ -113,8 +119,14 @@ rte_lpm6_add(struct rte_lpm6 *lpm, const uint8_t *ip, uint8_t depth,
  *   1 if the rule exists, 0 if it does not, a negative value on failure
  */
 int
-rte_lpm6_is_rule_present(struct rte_lpm6 *lpm, const uint8_t *ip, uint8_t depth,
-			 uint32_t *next_hop);
+rte_lpm6_is_rule_present(struct rte_lpm6 *lpm, uint8_t *ip, uint8_t depth,
+		uint32_t *next_hop);
+int
+rte_lpm6_is_rule_present_v20(struct rte_lpm6 *lpm, uint8_t *ip, uint8_t depth,
+		uint8_t *next_hop);
+int
+rte_lpm6_is_rule_present_v1705(struct rte_lpm6 *lpm, uint8_t *ip, uint8_t depth,
+		uint32_t *next_hop);
 
 /**
  * Delete a rule from the LPM table.
@@ -129,7 +141,7 @@ rte_lpm6_is_rule_present(struct rte_lpm6 *lpm, const uint8_t *ip, uint8_t depth,
  *   0 on success, negative value otherwise
  */
 int
-rte_lpm6_delete(struct rte_lpm6 *lpm, const uint8_t *ip, uint8_t depth);
+rte_lpm6_delete(struct rte_lpm6 *lpm, uint8_t *ip, uint8_t depth);
 
 /**
  * Delete a rule from the LPM table.
@@ -171,7 +183,12 @@ rte_lpm6_delete_all(struct rte_lpm6 *lpm);
  *   -EINVAL for incorrect arguments, -ENOENT on lookup miss, 0 on lookup hit
  */
 int
-rte_lpm6_lookup(const struct rte_lpm6 *lpm, const uint8_t *ip, uint32_t *next_hop);
+rte_lpm6_lookup(const struct rte_lpm6 *lpm, uint8_t *ip, uint32_t *next_hop);
+int
+rte_lpm6_lookup_v20(const struct rte_lpm6 *lpm, uint8_t *ip, uint8_t *next_hop);
+int
+rte_lpm6_lookup_v1705(const struct rte_lpm6 *lpm, uint8_t *ip,
+		uint32_t *next_hop);
 
 /**
  * Lookup multiple IP addresses in an LPM table.
@@ -191,6 +208,14 @@ rte_lpm6_lookup(const struct rte_lpm6 *lpm, const uint8_t *ip, uint32_t *next_ho
  */
 int
 rte_lpm6_lookup_bulk_func(const struct rte_lpm6 *lpm,
+		uint8_t ips[][RTE_LPM6_IPV6_ADDR_SIZE],
+		int32_t *next_hops, unsigned int n);
+int
+rte_lpm6_lookup_bulk_func_v20(const struct rte_lpm6 *lpm,
+		uint8_t ips[][RTE_LPM6_IPV6_ADDR_SIZE],
+		int16_t *next_hops, unsigned int n);
+int
+rte_lpm6_lookup_bulk_func_v1705(const struct rte_lpm6 *lpm,
 		uint8_t ips[][RTE_LPM6_IPV6_ADDR_SIZE],
 		int32_t *next_hops, unsigned int n);
 

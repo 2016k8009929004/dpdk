@@ -93,25 +93,25 @@ Some options in the script prompt the user for further data before proceeding.
 
     ------------------------------------------------------------------------
 
-    [1] i686-native-linux-gcc
+    [1] i686-native-linuxapp-gcc
 
-    [2] i686-native-linux-icc
+    [2] i686-native-linuxapp-icc
 
-    [3] ppc_64-power8-linux-gcc
+    [3] ppc_64-power8-linuxapp-gcc
 
-    [4] x86_64-native-freebsd-clang
+    [4] x86_64-native-bsdapp-clang
 
-    [5] x86_64-native-freebsd-gcc
+    [5] x86_64-native-bsdapp-gcc
 
-    [6] x86_64-native-linux-clang
+    [6] x86_64-native-linuxapp-clang
 
-    [7] x86_64-native-linux-gcc
+    [7] x86_64-native-linuxapp-gcc
 
-    [8] x86_64-native-linux-icc
+    [8] x86_64-native-linuxapp-icc
 
     ------------------------------------------------------------------------
 
-    Step 2: Setup linux environment
+    Step 2: Setup linuxapp environment
 
     ------------------------------------------------------------------------
 
@@ -135,7 +135,7 @@ Some options in the script prompt the user for further data before proceeding.
 
     ------------------------------------------------------------------------
 
-    Step 3: Run test application for linux environment
+    Step 3: Run test application for linuxapp environment
 
     ------------------------------------------------------------------------
 
@@ -173,19 +173,19 @@ Some options in the script prompt the user for further data before proceeding.
 
 Option:
 
-The following selection demonstrates the creation of the ``x86_64-native-linux-gcc`` DPDK library.
+The following selection demonstrates the creation of the ``x86_64-native-linuxapp-gcc`` DPDK library.
 
 .. code-block:: console
 
     Option: 9
 
-    ================== Installing x86_64-native-linux-gcc
+    ================== Installing x86_64-native-linuxapp-gcc
 
     Configuration done
     == Build lib
     ...
     Build complete
-    RTE_TARGET exported as x86_64-native-linux-gcc
+    RTE_TARGET exported as x86_64-native-linuxapp-gcc
 
 The following selection demonstrates the starting of the DPDK UIO driver.
 

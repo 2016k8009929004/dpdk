@@ -28,9 +28,7 @@ raw_output = False
 pcidb = None
 
 # ===========================================
-if sys.version_info.major < 3:
-        print("WARNING: Python 2 is deprecated for use in DPDK, and will not work in future releases.", file=sys.stderr)
-        print("Please use Python 3 instead", file=sys.stderr)
+
 
 class Vendor:
     """

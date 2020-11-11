@@ -1,61 +1,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Copyright(c) 2017-2019 Intel Corporation
-
-# check the OS is supported, rather than going any further
-supported_exec_envs = ['freebsd', 'linux', 'windows']
-exec_env = host_machine.system()
-if not supported_exec_envs.contains(exec_env)
-	error('unsupported system type "@0@"'.format(exec_env))
-endif
-
-# define a handy variable for checking which OS we have.
-# gives us "is_windows", "is_freebsd" and "is_linux"
-foreach env:supported_exec_envs
-	set_variable('is_' + env, exec_env == env)
-endforeach
-
-# MS linker requires special treatment.
-# TODO: use cc.get_linker_id() with Meson >= 0.54
-is_ms_linker = is_windows and (cc.get_id() == 'clang')
-
-# set the major version, which might be used by drivers and libraries
-# depending on the configuration options
-pver = meson.project_version().split('.')
-major_version = '@0@.@1@'.format(pver.get(0), pver.get(1))
-abi_version = run_command(find_program('cat', 'more'),
-	abi_version_file).stdout().strip()
-
-# Libraries have the abi_version as the filename extension
-# and have the soname be all but the final part of the abi_version.
-# e.g. v20.1 => librte_foo.so.20.1
-#    sonames => librte_foo.so.20
-# e.g. v20.0.1 => librte_foo.so.20.0.1
-#      sonames => librte_foo.so.20.0
-abi_va = abi_version.split('.')
-so_version = abi_va.length() == 2 ? abi_va[0] : abi_va[0] + '.' + abi_va[1]
-
-# extract all version information into the build configuration
-dpdk_conf.set('RTE_VER_YEAR', pver.get(0).to_int())
-dpdk_conf.set('RTE_VER_MONTH', pver.get(1).to_int())
-if pver.get(2).contains('-rc')
-	rc_ver = pver.get(2).split('-rc')
-	dpdk_conf.set('RTE_VER_MINOR', rc_ver.get(0).to_int())
-	dpdk_conf.set_quoted('RTE_VER_SUFFIX', '-rc')
-	dpdk_conf.set('RTE_VER_RELEASE', rc_ver.get(1).to_int())
-else
-	dpdk_conf.set('RTE_VER_MINOR', pver.get(2).to_int())
-	dpdk_conf.set_quoted('RTE_VER_SUFFIX', '')
-# for actual, non-rc releases, set the release value to 99 to ensure releases
-# have higher version numbers than their respective release candidates
-	dpdk_conf.set('RTE_VER_RELEASE', 99)
-endif
-
-pmd_subdir_opt = get_option('drivers_install_subdir')
-if pmd_subdir_opt.contains('<VERSION>')
-	pmd_subdir_opt = abi_version.join(pmd_subdir_opt.split('<VERSION>'))
-endif
-driver_install_path = join_paths(get_option('libdir'), pmd_subdir_opt)
-eal_pmd_path = join_paths(get_option('prefix'), driver_install_path)
+# Copyright(c) 2017 Intel Corporation
 
 # driver .so files often depend upon the bus drivers for their connect bus,
 # e.g. ixgbe depends on librte_bus_pci. This means that the bus drivers need
@@ -108,37 +52,24 @@ dpdk_conf.set('RTE_TOOLCHAIN_' + toolchain.to_upper(), 1)
 
 dpdk_conf.set('RTE_ARCH_64', cc.sizeof('void *') == 8)
 
-if not is_windows
-	add_project_link_arguments('-Wl,--no-as-needed', language: 'c')
-endif
+add_project_link_arguments('-Wl,--no-as-needed', language: 'c')
 
-# use pthreads if available for the platform
-if not is_windows
-	add_project_link_arguments('-pthread', language: 'c')
-	dpdk_extra_ldflags += '-pthread'
-endif
+# use pthreads
+add_project_link_arguments('-pthread', language: 'c')
+dpdk_extra_ldflags += '-pthread'
 
-# on some OS, maths functions are in a separate library
-if cc.find_library('m', required : false).found()
-	# some libs depend on maths lib
-	add_project_link_arguments('-lm', language: 'c')
-	dpdk_extra_ldflags += '-lm'
-endif
+# some libs depend on maths lib
+add_project_link_arguments('-lm', language: 'c')
+dpdk_extra_ldflags += '-lm'
 
 # for linux link against dl, for bsd execinfo
-if is_linux
+if host_machine.system() == 'linux'
 	link_lib = 'dl'
-elif is_freebsd
-	link_lib = 'execinfo'
 else
-	link_lib = ''
+	link_lib = 'execinfo'
 endif
-
-# if link_lib is empty, do not add it to project properties
-if link_lib != ''
-	add_project_link_arguments('-l' + link_lib, language: 'c')
-	dpdk_extra_ldflags += '-l' + link_lib
-endif
+add_project_link_arguments('-l' + link_lib, language: 'c')
+dpdk_extra_ldflags += '-l' + link_lib
 
 # check for libraries used in multiple places in DPDK
 has_libnuma = 0
@@ -150,10 +81,12 @@ if numa_dep.found() and cc.has_header('numaif.h')
 	dpdk_extra_ldflags += '-lnuma'
 endif
 
-# check for libbsd
-libbsd = dependency('libbsd', required: false)
-if libbsd.found()
+# check for strlcpy
+if host_machine.system() == 'linux' and cc.find_library('bsd',
+		required: false).found() and cc.has_header('bsd/string.h')
 	dpdk_conf.set('RTE_USE_LIBBSD', 1)
+	add_project_link_arguments('-lbsd', language: 'c')
+	dpdk_extra_ldflags += '-lbsd'
 endif
 
 # check for pcap
@@ -169,40 +102,14 @@ if pcap_dep.found() and cc.has_header('pcap.h', dependencies: pcap_dep)
 	dpdk_extra_ldflags += '-lpcap'
 endif
 
-# for clang 32-bit compiles we need libatomic for 64-bit atomic ops
-if cc.get_id() == 'clang' and dpdk_conf.get('RTE_ARCH_64') == false
-	atomic_dep = cc.find_library('atomic', required: true)
-	add_project_link_arguments('-latomic', language: 'c')
-	dpdk_extra_ldflags += '-latomic'
-endif
-
 # add -include rte_config to cflags
 add_project_arguments('-include', 'rte_config.h', language: 'c')
 
 # enable extra warnings and disable any unwanted warnings
 warning_flags = [
-	# -Wall is added by meson by default, so add -Wextra only
-	'-Wextra',
-
-	# additional warnings in alphabetical order
-	'-Wcast-qual',
-	'-Wdeprecated',
-	'-Wformat-nonliteral',
-	'-Wformat-security',
-	'-Wmissing-declarations',
-	'-Wmissing-prototypes',
-	'-Wnested-externs',
-	'-Wold-style-definition',
-	'-Wpointer-arith',
 	'-Wsign-compare',
-	'-Wstrict-prototypes',
-	'-Wundef',
-	'-Wwrite-strings',
-
-	# globally disabled warnings
-	'-Wno-address-of-packed-member',
-	'-Wno-packed-not-aligned',
-	'-Wno-missing-field-initializers'
+	'-Wcast-qual',
+	'-Wno-address-of-packed-member'
 ]
 if cc.get_id() == 'gcc' and cc.version().version_compare('>=10.0')
 # FIXME: Bugzilla 396
@@ -211,12 +118,6 @@ endif
 if not dpdk_conf.get('RTE_ARCH_64')
 # for 32-bit, don't warn about casting a 32-bit pointer to 64-bit int - it's fine!!
 	warning_flags += '-Wno-pointer-to-int-cast'
-endif
-if cc.get_id() == 'intel'
-	warning_ids = [188, 2203, 2279, 2557, 3179, 3656]
-	foreach i:warning_ids
-		warning_flags += '-diag-disable=@0@'.format(i)
-	endforeach
 endif
 foreach arg: warning_flags
 	if cc.has_argument(arg)
@@ -227,9 +128,7 @@ endforeach
 # set other values pulled from the build options
 dpdk_conf.set('RTE_MAX_LCORE', get_option('max_lcores'))
 dpdk_conf.set('RTE_MAX_NUMA_NODES', get_option('max_numa_nodes'))
-dpdk_conf.set('RTE_MAX_ETHPORTS', get_option('max_ethports'))
 dpdk_conf.set('RTE_LIBEAL_USE_HPET', get_option('use_hpet'))
-dpdk_conf.set('RTE_ENABLE_TRACE_FP', get_option('enable_trace_fp'))
 # values which have defaults which may be overridden
 dpdk_conf.set('RTE_MAX_VFIO_GROUPS', 64)
 dpdk_conf.set('RTE_DRIVER_MEMPOOL_BUCKET_SIZE_KB', 64)
@@ -242,6 +141,13 @@ endif
 
 
 compile_time_cpuflags = []
+if host_machine.cpu_family().startswith('x86')
+	arch_subdir = 'x86'
+elif host_machine.cpu_family().startswith('arm') or host_machine.cpu_family().startswith('aarch')
+	arch_subdir = 'arm'
+elif host_machine.cpu_family().startswith('ppc')
+	arch_subdir = 'ppc_64'
+endif
 subdir(arch_subdir)
 dpdk_conf.set('RTE_COMPILE_TIME_CPUFLAGS', ','.join(compile_time_cpuflags))
 
@@ -251,44 +157,12 @@ dpdk_conf.set_quoted('RTE_EAL_PMD_PATH', eal_pmd_path)
 install_headers('rte_config.h', subdir: get_option('include_subdir_arch'))
 
 # enable VFIO only if it is linux OS
-dpdk_conf.set('RTE_EAL_VFIO', is_linux)
+dpdk_conf.set('RTE_EAL_VFIO', host_machine.system() == 'linux')
 
 # specify -D_GNU_SOURCE unconditionally
 add_project_arguments('-D_GNU_SOURCE', language: 'c')
 
 # specify -D__BSD_VISIBLE for FreeBSD
-if is_freebsd
+if host_machine.system() == 'freebsd'
 	add_project_arguments('-D__BSD_VISIBLE', language: 'c')
-endif
-
-if is_windows
-	# VirtualAlloc2() is available since Windows 10 / Server 2016.
-	add_project_arguments('-D_WIN32_WINNT=0x0A00', language: 'c')
-
-	# Use MinGW-w64 stdio, because DPDK assumes ANSI-compliant formatting.
-	if cc.get_id() == 'gcc'
-		add_project_arguments('-D__USE_MINGW_ANSI_STDIO', language: 'c')
-	endif
-
-	# Contrary to docs, VirtualAlloc2() is exported by mincore.lib
-	# in Windows SDK, while MinGW exports it by advapi32.a.
-	if is_ms_linker
-		add_project_link_arguments('-lmincore', language: 'c')
-	endif
-
-	add_project_link_arguments('-ladvapi32', '-lsetupapi', language: 'c')
-	add_project_link_arguments('-ldbghelp', language: 'c')
-endif
-
-if get_option('b_lto')
-	if cc.has_argument('-ffat-lto-objects')
-		add_project_arguments('-ffat-lto-objects', language: 'c')
-	else
-		error('compiler does not support fat LTO objects - please turn LTO off')
-	endif
-	# workaround for gcc bug 81440
-	if cc.get_id() == 'gcc' and cc.version().version_compare('<8.0')
-		add_project_arguments('-Wno-lto-type-mismatch', language: 'c')
-		add_project_link_arguments('-Wno-lto-type-mismatch', language: 'c')
-	endif
 endif

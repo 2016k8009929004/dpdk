@@ -6,19 +6,16 @@
 #ifndef _ENIC_RXTX_COMMON_H_
 #define _ENIC_RXTX_COMMON_H_
 
-#include <rte_byteorder.h>
-
 static inline uint16_t
 enic_cq_rx_desc_ciflags(struct cq_enet_rq_desc *crd)
 {
-	return rte_le_to_cpu_16(crd->completed_index_flags) &
-				~CQ_DESC_COMP_NDX_MASK;
+	return le16_to_cpu(crd->completed_index_flags) & ~CQ_DESC_COMP_NDX_MASK;
 }
 
 static inline uint16_t
 enic_cq_rx_desc_bwflags(struct cq_enet_rq_desc *crd)
 {
-	return rte_le_to_cpu_16(crd->bytes_written_flags) &
+	return le16_to_cpu(crd->bytes_written_flags) &
 			   ~CQ_ENET_RQ_DESC_BYTES_WRITTEN_MASK;
 }
 
@@ -39,7 +36,7 @@ enic_cq_rx_desc_eop(uint16_t ciflags)
 static inline uint8_t
 enic_cq_rx_desc_csum_not_calc(struct cq_enet_rq_desc *cqrd)
 {
-	return (rte_le_to_cpu_16(cqrd->q_number_rss_type_flags) &
+	return (le16_to_cpu(cqrd->q_number_rss_type_flags) &
 		CQ_ENET_RQ_DESC_FLAGS_CSUM_NOT_CALC) ==
 		CQ_ENET_RQ_DESC_FLAGS_CSUM_NOT_CALC;
 }
@@ -61,27 +58,27 @@ enic_cq_rx_desc_tcp_udp_csum_ok(struct cq_enet_rq_desc *cqrd)
 static inline uint8_t
 enic_cq_rx_desc_rss_type(struct cq_enet_rq_desc *cqrd)
 {
-	return (uint8_t)((rte_le_to_cpu_16(cqrd->q_number_rss_type_flags) >>
+	return (uint8_t)((le16_to_cpu(cqrd->q_number_rss_type_flags) >>
 		CQ_DESC_Q_NUM_BITS) & CQ_ENET_RQ_DESC_RSS_TYPE_MASK);
 }
 
 static inline uint32_t
 enic_cq_rx_desc_rss_hash(struct cq_enet_rq_desc *cqrd)
 {
-	return rte_le_to_cpu_32(cqrd->rss_hash);
+	return le32_to_cpu(cqrd->rss_hash);
 }
 
 static inline uint16_t
 enic_cq_rx_desc_vlan(struct cq_enet_rq_desc *cqrd)
 {
-	return rte_le_to_cpu_16(cqrd->vlan);
+	return le16_to_cpu(cqrd->vlan);
 }
 
 static inline uint16_t
 enic_cq_rx_desc_n_bytes(struct cq_desc *cqd)
 {
 	struct cq_enet_rq_desc *cqrd = (struct cq_enet_rq_desc *)cqd;
-	return rte_le_to_cpu_16(cqrd->bytes_written_flags) &
+	return le16_to_cpu(cqrd->bytes_written_flags) &
 		CQ_ENET_RQ_DESC_BYTES_WRITTEN_MASK;
 }
 

@@ -3,7 +3,7 @@
  */
 
 #include <netinet/in.h>
-#ifdef RTE_EXEC_ENV_LINUX
+#ifdef RTE_EXEC_ENV_LINUXAPP
 #include <linux/if.h>
 #include <linux/if_tun.h>
 #endif
@@ -60,7 +60,7 @@ softnic_tap_find(struct pmd_internals *p,
 	return NULL;
 }
 
-#ifndef RTE_EXEC_ENV_LINUX
+#ifndef RTE_EXEC_ENV_LINUXAPP
 
 struct softnic_tap *
 softnic_tap_create(struct pmd_internals *p __rte_unused,
@@ -91,7 +91,7 @@ softnic_tap_create(struct pmd_internals *p,
 
 	memset(&ifr, 0, sizeof(ifr));
 	ifr.ifr_flags = IFF_TAP | IFF_NO_PI; /* No packet information */
-	strlcpy(ifr.ifr_name, name, IFNAMSIZ);
+	snprintf(ifr.ifr_name, IFNAMSIZ, "%s", name);
 
 	status = ioctl(fd, TUNSETIFF, (void *)&ifr);
 	if (status < 0) {

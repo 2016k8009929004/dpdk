@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: BSD-3-Clause
  *
- * Copyright(c) 2019-2020 Xilinx, Inc.
- * Copyright(c) 2016-2019 Solarflare Communications Inc.
+ * Copyright (c) 2016-2018 Solarflare Communications Inc.
+ * All rights reserved.
  *
  * This software was jointly developed between OKTET Labs (under contract
  * for Solarflare) and Solarflare Communications, Inc.
@@ -150,10 +150,6 @@ prefetch_read_once(const volatile void *addr)
 #define EFSYS_OPT_TUNNEL 1
 
 #define EFSYS_OPT_FW_SUBVARIANT_AWARE 1
-
-#define EFSYS_OPT_EVB 0
-
-#define EFSYS_OPT_MCDI_PROXY_AUTH_SERVER 0
 
 /* ID */
 

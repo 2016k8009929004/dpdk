@@ -11,8 +11,6 @@
 
 #include "rte_eth_softnic_internals.h"
 
-#define SOFTNIC_CRYPTO_SESSION_CACHE_SIZE 128
-
 int
 softnic_cryptodev_init(struct pmd_internals *p)
 {
@@ -63,16 +61,13 @@ softnic_cryptodev_create(struct pmd_internals *p,
 	struct softnic_cryptodev *cryptodev;
 	uint32_t dev_id, i;
 	uint32_t socket_id;
-	uint32_t cache_size;
-	char mp_name[NAME_SIZE];
 	int status;
 
 	/* Check input params */
 	if ((name == NULL) ||
 		softnic_cryptodev_find(p, name) ||
 		(params->n_queues == 0) ||
-		(params->queue_size == 0) ||
-		(params->session_pool_size == 0))
+		(params->queue_size == 0))
 		return NULL;
 
 	if (params->dev_name) {
@@ -87,11 +82,6 @@ softnic_cryptodev_create(struct pmd_internals *p,
 
 		dev_id = params->dev_id;
 	}
-
-	cache_size = (params->session_pool_size / 2 <
-			SOFTNIC_CRYPTO_SESSION_CACHE_SIZE) ?
-					(params->session_pool_size / 2) :
-					SOFTNIC_CRYPTO_SESSION_CACHE_SIZE;
 
 	socket_id = rte_cryptodev_socket_id(dev_id);
 	rte_cryptodev_info_get(dev_id, &dev_info);
@@ -111,7 +101,7 @@ softnic_cryptodev_create(struct pmd_internals *p,
 	queue_conf.nb_descriptors = params->queue_size;
 	for (i = 0; i < params->n_queues; i++) {
 		status = rte_cryptodev_queue_pair_setup(dev_id, i,
-				&queue_conf, socket_id);
+				&queue_conf, socket_id, NULL);
 		if (status < 0)
 			return NULL;
 	}
@@ -129,42 +119,7 @@ softnic_cryptodev_create(struct pmd_internals *p,
 	cryptodev->dev_id = dev_id;
 	cryptodev->n_queues = params->n_queues;
 
-	snprintf(mp_name, NAME_SIZE, "%s_mp%u", name, dev_id);
-	cryptodev->mp_create = rte_cryptodev_sym_session_pool_create(mp_name,
-			params->session_pool_size,
-			0,
-			cache_size,
-			0,
-			socket_id);
-	if (!cryptodev->mp_create)
-		goto error_exit;
-
-	snprintf(mp_name, NAME_SIZE, "%s_priv_mp%u", name, dev_id);
-	cryptodev->mp_init = rte_mempool_create(mp_name,
-			params->session_pool_size,
-			rte_cryptodev_sym_get_private_session_size(dev_id),
-			cache_size,
-			0,
-			NULL,
-			NULL,
-			NULL,
-			NULL,
-			socket_id,
-			0);
-	if (!cryptodev->mp_init)
-		goto error_exit;
-
 	TAILQ_INSERT_TAIL(&p->cryptodev_list, cryptodev, node);
 
 	return cryptodev;
-
-error_exit:
-	if (cryptodev->mp_create)
-		rte_mempool_free(cryptodev->mp_create);
-	if (cryptodev->mp_init)
-		rte_mempool_free(cryptodev->mp_init);
-
-	free(cryptodev);
-
-	return NULL;
 }

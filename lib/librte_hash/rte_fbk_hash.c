@@ -20,7 +20,6 @@
 #include <rte_cpuflags.h>
 #include <rte_log.h>
 #include <rte_spinlock.h>
-#include <rte_tailq.h>
 
 #include "rte_fbk_hash.h"
 
@@ -51,13 +50,13 @@ rte_fbk_hash_find_existing(const char *name)
 	fbk_hash_list = RTE_TAILQ_CAST(rte_fbk_hash_tailq.head,
 				       rte_fbk_hash_list);
 
-	rte_mcfg_tailq_read_lock();
+	rte_rwlock_read_lock(RTE_EAL_TAILQ_RWLOCK);
 	TAILQ_FOREACH(te, fbk_hash_list, next) {
 		h = (struct rte_fbk_hash_table *) te->data;
 		if (strncmp(name, h->name, RTE_FBK_HASH_NAMESIZE) == 0)
 			break;
 	}
-	rte_mcfg_tailq_read_unlock();
+	rte_rwlock_read_unlock(RTE_EAL_TAILQ_RWLOCK);
 	if (te == NULL) {
 		rte_errno = ENOENT;
 		return NULL;
@@ -104,7 +103,7 @@ rte_fbk_hash_create(const struct rte_fbk_hash_params *params)
 
 	snprintf(hash_name, sizeof(hash_name), "FBK_%s", params->name);
 
-	rte_mcfg_tailq_write_lock();
+	rte_rwlock_write_lock(RTE_EAL_TAILQ_RWLOCK);
 
 	/* guarantee there's no existing */
 	TAILQ_FOREACH(te, fbk_hash_list, next) {
@@ -142,7 +141,7 @@ rte_fbk_hash_create(const struct rte_fbk_hash_params *params)
 #endif
 
 	/* Set up hash table context. */
-	strlcpy(ht->name, params->name, sizeof(ht->name));
+	snprintf(ht->name, sizeof(ht->name), "%s", params->name);
 	ht->entries = params->entries;
 	ht->entries_per_bucket = params->entries_per_bucket;
 	ht->used_entries = 0;
@@ -166,7 +165,7 @@ rte_fbk_hash_create(const struct rte_fbk_hash_params *params)
 	TAILQ_INSERT_TAIL(fbk_hash_list, te, next);
 
 exit:
-	rte_mcfg_tailq_write_unlock();
+	rte_rwlock_write_unlock(RTE_EAL_TAILQ_RWLOCK);
 
 	return ht;
 }
@@ -189,7 +188,7 @@ rte_fbk_hash_free(struct rte_fbk_hash_table *ht)
 	fbk_hash_list = RTE_TAILQ_CAST(rte_fbk_hash_tailq.head,
 				       rte_fbk_hash_list);
 
-	rte_mcfg_tailq_write_lock();
+	rte_rwlock_write_lock(RTE_EAL_TAILQ_RWLOCK);
 
 	/* find out tailq entry */
 	TAILQ_FOREACH(te, fbk_hash_list, next) {
@@ -198,13 +197,13 @@ rte_fbk_hash_free(struct rte_fbk_hash_table *ht)
 	}
 
 	if (te == NULL) {
-		rte_mcfg_tailq_write_unlock();
+		rte_rwlock_write_unlock(RTE_EAL_TAILQ_RWLOCK);
 		return;
 	}
 
 	TAILQ_REMOVE(fbk_hash_list, te, next);
 
-	rte_mcfg_tailq_write_unlock();
+	rte_rwlock_write_unlock(RTE_EAL_TAILQ_RWLOCK);
 
 	rte_free(ht);
 	rte_free(te);

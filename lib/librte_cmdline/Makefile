@@ -10,6 +10,8 @@ CFLAGS += $(WERROR_FLAGS) -I$(SRCDIR) -O3
 
 EXPORT_MAP := rte_cmdline_version.map
 
+LIBABIVER := 2
+
 # all source are stored in SRCS-y
 SRCS-$(CONFIG_RTE_LIBRTE_CMDLINE) := cmdline.c
 SRCS-$(CONFIG_RTE_LIBRTE_CMDLINE) += cmdline_cirbuf.c
@@ -23,7 +25,7 @@ SRCS-$(CONFIG_RTE_LIBRTE_CMDLINE) += cmdline_vt100.c
 SRCS-$(CONFIG_RTE_LIBRTE_CMDLINE) += cmdline_socket.c
 SRCS-$(CONFIG_RTE_LIBRTE_CMDLINE) += cmdline_parse_portlist.c
 
-LDLIBS += -lrte_net -lrte_eal
+LDLIBS += -lrte_eal
 
 # install includes
 INCS := cmdline.h cmdline_parse.h cmdline_parse_num.h cmdline_parse_ipaddr.h

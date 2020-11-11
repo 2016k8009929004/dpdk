@@ -8,6 +8,7 @@
  * Rx queues configuration for mlx4 driver.
  */
 
+#include <assert.h>
 #include <errno.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -139,12 +140,12 @@ error:
 void
 mlx4_rss_put(struct mlx4_rss *rss)
 {
-	MLX4_ASSERT(rss->refcnt);
+	assert(rss->refcnt);
 	if (--rss->refcnt)
 		return;
-	MLX4_ASSERT(!rss->usecnt);
-	MLX4_ASSERT(!rss->qp);
-	MLX4_ASSERT(!rss->ind);
+	assert(!rss->usecnt);
+	assert(!rss->qp);
+	assert(!rss->ind);
 	LIST_REMOVE(rss, next);
 	rte_free(rss);
 }
@@ -166,10 +167,10 @@ mlx4_rss_put(struct mlx4_rss *rss)
 int
 mlx4_rss_attach(struct mlx4_rss *rss)
 {
-	MLX4_ASSERT(rss->refcnt);
+	assert(rss->refcnt);
 	if (rss->usecnt++) {
-		MLX4_ASSERT(rss->qp);
-		MLX4_ASSERT(rss->ind);
+		assert(rss->qp);
+		assert(rss->ind);
 		return 0;
 	}
 
@@ -294,9 +295,9 @@ mlx4_rss_detach(struct mlx4_rss *rss)
 	struct rte_eth_dev *dev = ETH_DEV(priv);
 	unsigned int i;
 
-	MLX4_ASSERT(rss->refcnt);
-	MLX4_ASSERT(rss->qp);
-	MLX4_ASSERT(rss->ind);
+	assert(rss->refcnt);
+	assert(rss->qp);
+	assert(rss->ind);
 	if (--rss->usecnt)
 		return;
 	claim_zero(mlx4_glue->destroy_qp(rss->qp));
@@ -365,7 +366,7 @@ mlx4_rss_init(struct mlx4_priv *priv)
 
 		/* Attach the configured Rx queues. */
 		if (rxq) {
-			MLX4_ASSERT(!rxq->usecnt);
+			assert(!rxq->usecnt);
 			ret = mlx4_rxq_attach(rxq);
 			if (!ret) {
 				wq_num = rxq->wq->wq_num;
@@ -462,7 +463,7 @@ mlx4_rss_deinit(struct mlx4_priv *priv)
 		struct rxq *rxq = ETH_DEV(priv)->data->rx_queues[i];
 
 		if (rxq) {
-			MLX4_ASSERT(rxq->usecnt == 1);
+			assert(rxq->usecnt == 1);
 			mlx4_rxq_detach(rxq);
 		}
 	}
@@ -487,10 +488,10 @@ int
 mlx4_rxq_attach(struct rxq *rxq)
 {
 	if (rxq->usecnt++) {
-		MLX4_ASSERT(rxq->cq);
-		MLX4_ASSERT(rxq->wq);
-		MLX4_ASSERT(rxq->wqes);
-		MLX4_ASSERT(rxq->rq_db);
+		assert(rxq->cq);
+		assert(rxq->wq);
+		assert(rxq->wqes);
+		assert(rxq->rq_db);
 		return 0;
 	}
 
@@ -511,9 +512,7 @@ mlx4_rxq_attach(struct rxq *rxq)
 	unsigned int i;
 	int ret;
 
-	MLX4_ASSERT(rte_is_power_of_2(elts_n));
-	priv->verbs_alloc_ctx.type = MLX4_VERBS_ALLOC_TYPE_RX_QUEUE;
-	priv->verbs_alloc_ctx.obj = rxq;
+	assert(rte_is_power_of_2(elts_n));
 	cq = mlx4_glue->create_cq(priv->ctx, elts_n / sges_n, NULL,
 				  rxq->channel, 0);
 	if (!cq) {
@@ -583,10 +582,10 @@ mlx4_rxq_attach(struct rxq *rxq)
 			goto error;
 		}
 		/* Headroom is reserved by rte_pktmbuf_alloc(). */
-		MLX4_ASSERT(buf->data_off == RTE_PKTMBUF_HEADROOM);
+		assert(buf->data_off == RTE_PKTMBUF_HEADROOM);
 		/* Buffer is supposed to be empty. */
-		MLX4_ASSERT(rte_pktmbuf_data_len(buf) == 0);
-		MLX4_ASSERT(rte_pktmbuf_pkt_len(buf) == 0);
+		assert(rte_pktmbuf_data_len(buf) == 0);
+		assert(rte_pktmbuf_pkt_len(buf) == 0);
 		/* Only the first segment keeps headroom. */
 		if (i % sges_n)
 			buf->data_off = 0;
@@ -621,7 +620,6 @@ mlx4_rxq_attach(struct rxq *rxq)
 	rxq->rq_ci = elts_n / sges_n;
 	rte_wmb();
 	*rxq->rq_db = rte_cpu_to_be_32(rxq->rq_ci);
-	priv->verbs_alloc_ctx.type = MLX4_VERBS_ALLOC_TYPE_NONE;
 	return 0;
 error:
 	if (wq)
@@ -632,7 +630,6 @@ error:
 	rte_errno = ret;
 	ERROR("error while attaching Rx queue %p: %s: %s",
 	      (void *)rxq, msg, strerror(ret));
-	priv->verbs_alloc_ctx.type = MLX4_VERBS_ALLOC_TYPE_NONE;
 	return -ret;
 }
 
@@ -684,8 +681,7 @@ mlx4_get_rx_queue_offloads(struct mlx4_priv *priv)
 {
 	uint64_t offloads = DEV_RX_OFFLOAD_SCATTER |
 			    DEV_RX_OFFLOAD_KEEP_CRC |
-			    DEV_RX_OFFLOAD_JUMBO_FRAME |
-			    DEV_RX_OFFLOAD_RSS_HASH;
+			    DEV_RX_OFFLOAD_JUMBO_FRAME;
 
 	if (priv->hw_csum)
 		offloads |= DEV_RX_OFFLOAD_CHECKSUM;
@@ -827,7 +823,7 @@ mlx4_rx_queue_setup(struct rte_eth_dev *dev, uint16_t idx, uint16_t desc,
 		.socket = socket,
 	};
 	/* Enable scattered packets support for this queue if necessary. */
-	MLX4_ASSERT(mb_len >= RTE_PKTMBUF_HEADROOM);
+	assert(mb_len >= RTE_PKTMBUF_HEADROOM);
 	if (dev->data->dev_conf.rxmode.max_rx_pkt_len <=
 	    (mb_len - RTE_PKTMBUF_HEADROOM)) {
 		;
@@ -903,7 +899,7 @@ error:
 	ret = rte_errno;
 	mlx4_rx_queue_release(rxq);
 	rte_errno = ret;
-	MLX4_ASSERT(rte_errno > 0);
+	assert(rte_errno > 0);
 	return -rte_errno;
 }
 
@@ -930,10 +926,10 @@ mlx4_rx_queue_release(void *dpdk_rxq)
 			ETH_DEV(priv)->data->rx_queues[i] = NULL;
 			break;
 		}
-	MLX4_ASSERT(!rxq->cq);
-	MLX4_ASSERT(!rxq->wq);
-	MLX4_ASSERT(!rxq->wqes);
-	MLX4_ASSERT(!rxq->rq_db);
+	assert(!rxq->cq);
+	assert(!rxq->wq);
+	assert(!rxq->wqes);
+	assert(!rxq->rq_db);
 	if (rxq->channel)
 		claim_zero(mlx4_glue->destroy_comp_channel(rxq->channel));
 	mlx4_mr_btree_free(&rxq->mr_ctrl.cache_bh);

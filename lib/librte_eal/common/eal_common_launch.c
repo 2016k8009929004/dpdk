@@ -15,8 +15,6 @@
 #include <rte_per_lcore.h>
 #include <rte_lcore.h>
 
-#include "eal_private.h"
-
 /*
  * Wait until a lcore finished its job.
  */

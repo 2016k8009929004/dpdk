@@ -3,7 +3,6 @@
  * Copyright 2007 Nuova Systems, Inc.  All rights reserved.
  */
 
-#include <rte_memzone.h>
 #include "vnic_dev.h"
 #include "vnic_rq.h"
 
@@ -22,7 +21,7 @@ int vnic_rq_alloc(struct vnic_dev *vdev, struct vnic_rq *rq, unsigned int index,
 	unsigned int desc_count, unsigned int desc_size)
 {
 	int rc;
-	char res_name[RTE_MEMZONE_NAMESIZE];
+	char res_name[NAME_MAX];
 	static int instance;
 
 	rq->index = index;
@@ -47,10 +46,10 @@ void vnic_rq_init_start(struct vnic_rq *rq, unsigned int cq_index,
 	unsigned int error_interrupt_enable,
 	unsigned int error_interrupt_offset)
 {
-	uint64_t paddr;
+	u64 paddr;
 	unsigned int count = rq->ring.desc_count;
 
-	paddr = (uint64_t)rq->ring.base_addr | VNIC_PADDR_TARGET;
+	paddr = (u64)rq->ring.base_addr | VNIC_PADDR_TARGET;
 	writeq(paddr, &rq->ctrl->ring_base);
 	iowrite32(count, &rq->ctrl->ring_size);
 	iowrite32(cq_index, &rq->ctrl->cq_index);
@@ -70,7 +69,7 @@ void vnic_rq_init(struct vnic_rq *rq, unsigned int cq_index,
 	unsigned int error_interrupt_enable,
 	unsigned int error_interrupt_offset)
 {
-	uint32_t fetch_index = 0;
+	u32 fetch_index = 0;
 
 	/* Use current fetch_index as the ring starting point */
 	fetch_index = ioread32(&rq->ctrl->fetch_index);
@@ -110,7 +109,7 @@ int vnic_rq_disable(struct vnic_rq *rq)
 	for (wait = 0; wait < 1000; wait++) {
 		if (!(ioread32(&rq->ctrl->running)))
 			return 0;
-		usleep(10);
+		udelay(10);
 	}
 
 	pr_err("Failed to disable RQ[%d]\n", rq->index);
@@ -122,7 +121,7 @@ void vnic_rq_clean(struct vnic_rq *rq,
 	void (*buf_clean)(struct rte_mbuf **buf))
 {
 	struct rte_mbuf **buf;
-	uint32_t fetch_index, i;
+	u32 fetch_index, i;
 	unsigned int count = rq->ring.desc_count;
 
 	buf = &rq->mbuf_ring[0];

@@ -46,7 +46,7 @@ rte_security_session_create(struct rte_security_ctx *instance,
 	return sess;
 }
 
-int
+int __rte_experimental
 rte_security_session_update(struct rte_security_ctx *instance,
 			    struct rte_security_session *sess,
 			    struct rte_security_session_conf *conf)
@@ -67,7 +67,7 @@ rte_security_session_get_size(struct rte_security_ctx *instance)
 	return instance->ops->session_get_size(instance->device);
 }
 
-int
+int __rte_experimental
 rte_security_session_stats_get(struct rte_security_ctx *instance,
 			       struct rte_security_session *sess,
 			       struct rte_security_stats *stats)
@@ -117,7 +117,7 @@ rte_security_set_pkt_metadata(struct rte_security_ctx *instance,
 					       sess, m, params);
 }
 
-void *
+void * __rte_experimental
 rte_security_get_userdata(struct rte_security_ctx *instance, uint64_t md)
 {
 	void *userdata = NULL;
@@ -172,11 +172,6 @@ rte_security_capability_get(struct rte_security_ctx *instance,
 			} else if (idx->protocol == RTE_SECURITY_PROTOCOL_PDCP) {
 				if (capability->pdcp.domain ==
 							idx->pdcp.domain)
-					return capability;
-			} else if (idx->protocol ==
-						RTE_SECURITY_PROTOCOL_DOCSIS) {
-				if (capability->docsis.direction ==
-							idx->docsis.direction)
 					return capability;
 			}
 		}

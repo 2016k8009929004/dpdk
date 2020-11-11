@@ -479,7 +479,7 @@ step1_func()
 #
 step2_func()
 {
-	TITLE="Setup linux environment"
+	TITLE="Setup linuxapp environment"
 
 	TEXT[1]="Insert IGB UIO module"
 	FUNC[1]="load_igb_uio_module"
@@ -496,13 +496,13 @@ step2_func()
 	TEXT[5]="Setup hugepage mappings for NUMA systems"
 	FUNC[5]="set_numa_pages"
 
-	TEXT[6]="Display current Ethernet/Baseband/Crypto device settings"
+	TEXT[6]="Display current Ethernet/Crypto device settings"
 	FUNC[6]="show_devices"
 
-	TEXT[7]="Bind Ethernet/Baseband/Crypto device to IGB UIO module"
+	TEXT[7]="Bind Ethernet/Crypto device to IGB UIO module"
 	FUNC[7]="bind_devices_to_igb_uio"
 
-	TEXT[8]="Bind Ethernet/Baseband/Crypto device to VFIO module"
+	TEXT[8]="Bind Ethernet/Crypto device to VFIO module"
 	FUNC[8]="bind_devices_to_vfio"
 
 	TEXT[9]="Setup VFIO permissions"
@@ -514,7 +514,7 @@ step2_func()
 #
 step3_func()
 {
-	TITLE="Run test application for linux environment"
+	TITLE="Run test application for linuxapp environment"
 
 	TEXT[1]="Run test application (\$RTE_TARGET/app/test)"
 	FUNC[1]="run_test_app"
@@ -592,10 +592,6 @@ while [ "$QUIT" == "0" ]; do
 	echo "[$OPTION_NUM] Exit Script"
 	OPTIONS[$OPTION_NUM]="quit"
 	echo ""
-	echo '--------------------------------------------------'
-	echo 'WARNING: This tool will be removed from DPDK 20.11'
-	echo '--------------------------------------------------'
-	echo
 	echo -n "Option: "
 	read our_entry
 	echo ""

@@ -1,6 +1,5 @@
 /* SPDX-License-Identifier: BSD-3-Clause
  * Copyright(c) 2016-2017 Intel Corporation
- * Copyright(c) 2019 Arm Limited
  */
 
 /**
@@ -20,7 +19,6 @@
 #include <rte_memory.h>
 #include <rte_malloc.h>
 #include <rte_ring.h>
-#include <rte_ring_elem.h>
 #include "rte_eventdev.h"
 
 #define RTE_TAILQ_EVENT_RING_NAME "RTE_EVENT_RING"
@@ -90,17 +88,22 @@ rte_event_ring_enqueue_burst(struct rte_event_ring *r,
 		const struct rte_event *events,
 		unsigned int n, uint16_t *free_space)
 {
-	unsigned int num;
-	uint32_t space;
+	uint32_t prod_head, prod_next;
+	uint32_t free_entries;
 
-	num = rte_ring_enqueue_burst_elem(&r->r, events,
-				sizeof(struct rte_event), n,
-				&space);
+	n = __rte_ring_move_prod_head(&r->r, r->r.prod.single, n,
+			RTE_RING_QUEUE_VARIABLE,
+			&prod_head, &prod_next, &free_entries);
+	if (n == 0)
+		goto end;
 
+	ENQUEUE_PTRS(&r->r, &r[1], prod_head, events, n, struct rte_event);
+
+	update_tail(&r->r.prod, prod_head, prod_next, r->r.prod.single, 1);
+end:
 	if (free_space != NULL)
-		*free_space = space;
-
-	return num;
+		*free_space = free_entries - n;
+	return n;
 }
 
 /**
@@ -126,17 +129,23 @@ rte_event_ring_dequeue_burst(struct rte_event_ring *r,
 		struct rte_event *events,
 		unsigned int n, uint16_t *available)
 {
-	unsigned int num;
-	uint32_t remaining;
+	uint32_t cons_head, cons_next;
+	uint32_t entries;
 
-	num = rte_ring_dequeue_burst_elem(&r->r, events,
-				sizeof(struct rte_event), n,
-				&remaining);
+	n = __rte_ring_move_cons_head(&r->r, r->r.cons.single, n,
+			RTE_RING_QUEUE_VARIABLE,
+			&cons_head, &cons_next, &entries);
+	if (n == 0)
+		goto end;
 
+	DEQUEUE_PTRS(&r->r, &r[1], cons_head, events, n, struct rte_event);
+
+	update_tail(&r->r.cons, cons_head, cons_next, r->r.cons.single, 0);
+
+end:
 	if (available != NULL)
-		*available = remaining;
-
-	return num;
+		*available = entries - n;
+	return n;
 }
 
 /*
